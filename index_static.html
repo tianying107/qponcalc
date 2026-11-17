@@ -1,0 +1,1452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>DealCalc · Rebate & Deal Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #f8fafc;
+      color: #0f172a;
+      -webkit-tap-highlight-color: transparent;
+    }
+    input::-webkit-inner-spin-button,
+    input::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input[type="number"] {
+      -moz-appearance: textfield;
+    }
+    .tab-active {
+      border-bottom: 2px solid #2563eb;
+      color: #2563eb;
+      font-weight: 600;
+    }
+    .profit-pos { color: #059669; font-weight: 600; }
+    .profit-neg { color: #e11d48; font-weight: 600; }
+    .profit-zero { color: #64748b; font-weight: 500; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col pb-10">
+
+  <!-- Top Navbar -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between py-2.5 sm:py-3 gap-2">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-base shadow-sm shrink-0">
+            $
+          </div>
+          <h1 class="text-base sm:text-lg font-bold tracking-tight text-slate-900">
+            DealCalc
+          </h1>
+        </div>
+
+        <!-- Global Actions -->
+        <div class="flex items-center gap-1.5 text-xs">
+          <span id="saveStatus" class="text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md font-medium hidden md:inline-block">Saved</span>
+          <button onclick="exportAllJSON()" class="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white active:bg-slate-100 hover:bg-slate-50 text-slate-700 font-medium transition">
+            Export
+          </button>
+          <label class="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white active:bg-slate-100 hover:bg-slate-50 text-slate-700 font-medium cursor-pointer transition">
+            Import
+            <input type="file" id="importFile" accept=".json" class="hidden" onchange="importAllJSON(event)" />
+          </label>
+          <button onclick="resetToDefault()" class="px-2.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 active:bg-rose-100 hover:bg-rose-100 text-rose-700 font-medium transition">
+            Reset
+          </button>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex space-x-5 sm:space-x-7 overflow-x-auto no-scrollbar -mb-px text-xs sm:text-sm" id="mainTabs">
+        <button onclick="switchTab('walgreens')" id="tab-walgreens" class="tab-active py-2.5 px-1 whitespace-nowrap flex items-center gap-1.5 transition shrink-0">
+          <span class="w-2 h-2 rounded-full bg-red-500"></span> Walgreens
+        </button>
+        <button onclick="switchTab('cvs')" id="tab-cvs" class="py-2.5 px-1 text-slate-500 hover:text-slate-800 whitespace-nowrap flex items-center gap-1.5 transition shrink-0">
+          <span class="w-2 h-2 rounded-full bg-rose-600"></span> CVS
+        </button>
+        <button onclick="switchTab('frys')" id="tab-frys" class="py-2.5 px-1 text-slate-500 hover:text-slate-800 whitespace-nowrap flex items-center gap-1.5 transition shrink-0">
+          <span class="w-2 h-2 rounded-full bg-blue-600"></span> Fry's Deals
+        </button>
+        <button onclick="switchTab('review')" id="tab-review" class="py-2.5 px-1 text-slate-500 hover:text-slate-800 whitespace-nowrap flex items-center gap-1.5 transition shrink-0">
+          <span class="w-2 h-2 rounded-full bg-amber-500"></span> Reviews
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
+
+    <!-- ==================== TAB 1: WALGREENS ==================== -->
+    <section id="panel-walgreens" class="space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-5 shadow-sm">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3.5 border-b border-slate-100">
+          <div class="flex flex-wrap items-center gap-2">
+            <select id="wgScenarioSelect" onchange="switchWgScenario(this.value)" class="flex-1 sm:flex-none min-w-[160px] rounded-lg border border-slate-300 bg-slate-50 px-3 py-1.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
+            <div class="flex items-center gap-1.5">
+              <button onclick="addWgScenario()" class="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-blue-50 text-blue-600 active:bg-blue-100 hover:bg-blue-100 transition">+ New</button>
+              <button onclick="duplicateWgScenario()" class="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-slate-100 text-slate-700 active:bg-slate-200 hover:bg-slate-200 transition">Duplicate</button>
+              <button onclick="deleteWgScenario()" class="px-2.5 py-1.5 text-xs font-medium rounded-lg text-rose-600 active:bg-rose-50 hover:bg-rose-50 transition">Delete</button>
+            </div>
+          </div>
+          <div class="grid grid-cols-3 sm:flex sm:flex-wrap items-center gap-2 sm:gap-4 text-xs">
+            <label class="flex flex-col sm:flex-row sm:items-center gap-1 text-slate-600">
+              <span class="text-[11px] text-slate-500 font-medium">Tax Rate</span>
+              <input type="text" inputmode="decimal" id="wgTaxRate" onchange="updateWgMeta()" onfocus="this.select()" class="w-full sm:w-20 rounded-lg border border-slate-300 px-2.5 py-1.5 text-right font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </label>
+            <label class="flex flex-col sm:flex-row sm:items-center gap-1 text-slate-600">
+              <span class="text-[11px] text-slate-500 font-medium">Spend Req</span>
+              <input type="text" inputmode="decimal" id="wgSpendReq" onchange="updateWgMeta()" onfocus="this.select()" class="w-full sm:w-20 rounded-lg border border-slate-300 px-2.5 py-1.5 text-right font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </label>
+            <label class="flex flex-col sm:flex-row sm:items-center gap-1 text-slate-600">
+              <span class="text-[11px] text-slate-500 font-medium">Booster Get</span>
+              <input type="text" inputmode="decimal" id="wgBoosterGet" onchange="updateWgMeta()" onfocus="this.select()" class="w-full sm:w-20 rounded-lg border border-slate-300 px-2.5 py-1.5 text-right font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </label>
+          </div>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 pt-3.5">
+          <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/70">
+            <div class="text-[11px] text-slate-500 font-medium">SUBTOTAL</div>
+            <div id="wgKpiSubtotal" class="text-lg sm:text-xl font-bold text-slate-900 mt-0.5 font-mono">$0.00</div>
+            <div id="wgKpiTax" class="text-[11px] text-slate-400 mt-0.5 font-mono">Tax: $0.00</div>
+          </div>
+          <div class="p-3 rounded-xl bg-blue-50/70 border border-blue-200/70">
+            <div class="text-[11px] text-blue-700 font-medium">QUALIFYING SPEND</div>
+            <div id="wgKpiTotalSpend" class="text-lg sm:text-xl font-bold text-blue-900 mt-0.5 font-mono">$0.00</div>
+            <div id="wgKpiSpendStatus" class="text-[11px] mt-0.5 font-medium leading-tight"></div>
+          </div>
+          <div class="p-3 rounded-xl bg-amber-50/70 border border-amber-200/70">
+            <div class="text-[11px] text-amber-800 font-medium">MAX WC TO USE</div>
+            <div id="wgKpiCanUseWc" class="text-lg sm:text-xl font-bold text-amber-900 mt-0.5 font-mono">$0.00</div>
+            <div class="text-[10px] text-amber-700/80 mt-0.5">Safe WC limit</div>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/70">
+            <div class="text-[11px] text-slate-500 font-medium">OOP (AFTER TAX)</div>
+            <div id="wgKpiAfterTax" class="text-lg sm:text-xl font-bold text-slate-900 mt-0.5 font-mono">$0.00</div>
+            <div id="wgKpiCoupons" class="text-[11px] text-slate-400 mt-0.5 font-mono">MFC: $0 | IVC: $0</div>
+          </div>
+          <div class="p-3 rounded-xl bg-purple-50/70 border border-purple-200/70">
+            <div class="text-[11px] text-purple-700 font-medium">TOTAL EARNED</div>
+            <div id="wgKpiEarned" class="text-lg sm:text-xl font-bold text-purple-900 mt-0.5 font-mono">$0.00</div>
+            <div id="wgKpiEarnedBreak" class="text-[10px] text-purple-700/80 mt-0.5 font-mono truncate">WC+RR+Ibotta</div>
+          </div>
+          <div id="wgProfitCard" class="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
+            <div class="text-[11px] font-semibold uppercase tracking-wide text-emerald-800">NET PROFIT</div>
+            <div id="wgKpiProfit" class="text-xl sm:text-2xl font-bold mt-0.5 font-mono">$0.00</div>
+            <div id="wgKpiVerdict" class="text-[11px] font-semibold mt-0.5"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Items Header -->
+      <div class="flex items-center justify-between px-1">
+        <div class="text-xs text-slate-500">
+          <span class="font-semibold text-slate-800 text-sm mr-2">Items</span>
+          Tax: 1=Yes, 0=No · Pct: 0.75 for BOGO 50%
+        </div>
+        <button onclick="addWgRow()" class="px-3.5 py-2 rounded-xl bg-blue-600 active:bg-blue-700 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm transition shrink-0">
+          + Add Item
+        </button>
+      </div>
+
+      <!-- Mobile Card View -->
+      <div id="wgMobileCards" class="md:hidden space-y-3"></div>
+
+      <!-- Desktop Table View -->
+      <div class="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs text-left border-collapse">
+            <thead class="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+              <tr>
+                <th class="py-2.5 px-3 min-w-[130px]">Product</th>
+                <th class="py-2.5 px-2 w-20 text-right">Price</th>
+                <th class="py-2.5 px-2 w-16 text-right">Qty</th>
+                <th class="py-2.5 px-2 w-16 text-center">Tax</th>
+                <th class="py-2.5 px-2 w-20 text-right">Pct</th>
+                <th class="py-2.5 px-2 w-20 text-right bg-slate-100/70">Total</th>
+                <th class="py-2.5 px-2 w-16 text-right bg-slate-100/70">Tax $</th>
+                <th class="py-2.5 px-2 w-20 text-right text-blue-700">MFC</th>
+                <th class="py-2.5 px-2 w-20 text-right text-blue-700">IVC/SC</th>
+                <th class="py-2.5 px-2 w-20 text-right text-purple-700">WC</th>
+                <th class="py-2.5 px-2 w-20 text-right text-purple-700">RR</th>
+                <th class="py-2.5 px-2 w-20 text-right text-purple-700">Ibotta</th>
+                <th class="py-2.5 px-2 w-20 text-right text-purple-700">Other</th>
+                <th class="py-2.5 px-3 w-24 text-right bg-slate-100/70">Profit</th>
+                <th class="py-2.5 px-2 w-10 text-center"></th>
+              </tr>
+            </thead>
+            <tbody id="wgTableBody" class="divide-y divide-slate-100"></tbody>
+            <tfoot id="wgTableFoot" class="bg-slate-50 font-semibold text-slate-800 border-t-2 border-slate-200"></tfoot>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 2: CVS ==================== -->
+    <section id="panel-cvs" class="space-y-4 hidden">
+      <div class="bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-5 shadow-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-100">
+          <div class="flex flex-wrap items-center gap-2">
+            <select id="cvsScenarioSelect" onchange="switchCvsScenario(this.value)" class="flex-1 sm:flex-none min-w-[160px] rounded-lg border border-slate-300 bg-slate-50 px-3 py-1.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500"></select>
+            <div class="flex items-center gap-1.5">
+              <button onclick="addCvsScenario()" class="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-rose-50 text-rose-600 active:bg-rose-100 hover:bg-rose-100 transition">+ New</button>
+              <button onclick="duplicateCvsScenario()" class="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-slate-100 text-slate-700 active:bg-slate-200 hover:bg-slate-200 transition">Duplicate</button>
+              <button onclick="deleteCvsScenario()" class="px-2.5 py-1.5 text-xs font-medium rounded-lg text-rose-600 active:bg-rose-50 hover:bg-rose-50 transition">Delete</button>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 text-xs">
+            <span class="text-slate-500 font-medium">Tax Rate:</span>
+            <input type="text" inputmode="decimal" id="cvsTaxRate" onchange="updateCvsMeta()" onfocus="this.select()" class="w-24 rounded-lg border border-slate-300 px-2.5 py-1.5 text-right font-mono text-sm focus:outline-none focus:ring-2 focus:ring-rose-500" />
+          </div>
+        </div>
+
+        <!-- CVS KPI Cards -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 pt-3.5">
+          <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/70">
+            <div class="text-[11px] text-slate-500 font-medium">SUBTOTAL</div>
+            <div id="cvsKpiSubtotal" class="text-lg sm:text-xl font-bold text-slate-900 mt-0.5 font-mono">$0.00</div>
+            <div id="cvsKpiCoupons" class="text-[11px] text-slate-400 mt-0.5 font-mono">MFR: $0 | CRT: $0</div>
+          </div>
+          <div class="p-3 rounded-xl bg-amber-50/70 border border-amber-200/70">
+            <div class="text-[11px] text-amber-800 font-medium">MAX EB TO USE</div>
+            <div id="cvsKpiCanUseEb" class="text-lg sm:text-xl font-bold text-amber-900 mt-0.5 font-mono">$0.00</div>
+            <div class="text-[10px] text-amber-700/80 mt-0.5">SubTotal - MFR - CRT</div>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/70">
+            <div class="text-[11px] text-slate-500 font-medium">OOP (AFTER TAX)</div>
+            <div id="cvsKpiAfterTax" class="text-lg sm:text-xl font-bold text-slate-900 mt-0.5 font-mono">$0.00</div>
+            <div id="cvsKpiBeforeTax" class="text-[11px] text-slate-400 mt-0.5 font-mono">Before Tax: $0.00</div>
+          </div>
+          <div class="p-3 rounded-xl bg-purple-50/70 border border-purple-200/70">
+            <div class="text-[11px] text-purple-700 font-medium">TOTAL EARNED</div>
+            <div id="cvsKpiEarned" class="text-lg sm:text-xl font-bold text-purple-900 mt-0.5 font-mono">$0.00</div>
+            <div id="cvsKpiEarnedBreak" class="text-[10px] text-purple-700/80 mt-0.5 font-mono truncate">EB + Ibotta + Other</div>
+          </div>
+          <div id="cvsProfitCard" class="col-span-2 sm:col-span-1 p-3 rounded-xl bg-emerald-50 border border-emerald-200">
+            <div class="text-[11px] font-semibold uppercase tracking-wide text-emerald-800">NET PROFIT</div>
+            <div id="cvsKpiProfit" class="text-xl sm:text-2xl font-bold mt-0.5 font-mono">$0.00</div>
+            <div id="cvsKpiVerdict" class="text-[11px] font-semibold mt-0.5"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CVS Items Header -->
+      <div class="flex items-center justify-between px-1">
+        <div class="text-xs text-slate-500">
+          <span class="font-semibold text-slate-800 text-sm mr-2">Items</span>
+          Taxable base = SubTotal - CRT
+        </div>
+        <button onclick="addCvsRow()" class="px-3.5 py-2 rounded-xl bg-rose-600 active:bg-rose-700 hover:bg-rose-700 text-white text-xs font-semibold shadow-sm transition shrink-0">
+          + Add Item
+        </button>
+      </div>
+
+      <!-- Mobile Card View -->
+      <div id="cvsMobileCards" class="md:hidden space-y-3"></div>
+
+      <!-- Desktop Table View -->
+      <div class="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs text-left border-collapse">
+            <thead class="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+              <tr>
+                <th class="py-2.5 px-3 min-w-[140px]">Product</th>
+                <th class="py-2.5 px-2 w-20 text-right">Price</th>
+                <th class="py-2.5 px-2 w-16 text-right">Qty</th>
+                <th class="py-2.5 px-2 w-20 text-right">Pct</th>
+                <th class="py-2.5 px-2 w-22 text-right bg-slate-100/70">SubTotal</th>
+                <th class="py-2.5 px-2 w-20 text-right text-blue-700">MFR</th>
+                <th class="py-2.5 px-2 w-20 text-right text-blue-700">CRT</th>
+                <th class="py-2.5 px-2 w-24 text-right bg-slate-100/70">Pre-Tax</th>
+                <th class="py-2.5 px-2 w-20 text-right text-purple-700">EB</th>
+                <th class="py-2.5 px-2 w-20 text-right text-purple-700">Ibotta</th>
+                <th class="py-2.5 px-2 w-20 text-right text-purple-700">Other</th>
+                <th class="py-2.5 px-3 w-24 text-right bg-slate-100/70">Profit</th>
+                <th class="py-2.5 px-2 w-10 text-center"></th>
+              </tr>
+            </thead>
+            <tbody id="cvsTableBody" class="divide-y divide-slate-100"></tbody>
+            <tfoot id="cvsTableFoot" class="bg-slate-50 font-semibold text-slate-800 border-t-2 border-slate-200"></tfoot>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 3: FRY'S WEEKLY DEALS ==================== -->
+    <section id="panel-frys" class="space-y-4 hidden">
+      <div class="flex flex-wrap items-center justify-between gap-2 px-1">
+        <div>
+          <h2 class="text-sm sm:text-base font-bold text-slate-800">Fry's Weekly Deals</h2>
+          <p class="text-xs text-slate-500">Buy & Receive status across accounts</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="addFrysDeal()" class="px-3 py-2 rounded-xl bg-blue-600 active:bg-blue-700 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm transition">
+            + Add Deal
+          </button>
+          <button onclick="addFrysAccount()" class="px-3 py-2 rounded-xl border border-slate-300 bg-white active:bg-slate-100 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition">
+            + Add Account
+          </button>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs text-left border-collapse" id="frysMatrixTable">
+            <thead id="frysTableHead" class="bg-slate-50 text-slate-700 border-b border-slate-200"></thead>
+            <tbody id="frysTableBody" class="divide-y divide-slate-200"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 4: REVIEWS ==================== -->
+    <section id="panel-review" class="space-y-4 hidden">
+      <!-- Summary Banner -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div class="bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-4 shadow-sm">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-500">Account: Bo</span>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium" id="revBoCount">0 items</span>
+          </div>
+          <div class="mt-2 flex items-baseline justify-between">
+            <div>
+              <div class="text-[11px] text-slate-400">Paid / Refunded</div>
+              <div class="text-xs sm:text-sm font-mono font-semibold text-slate-700 mt-0.5" id="revBoFlow">$0.00 / $0.00</div>
+            </div>
+            <div class="text-right">
+              <div class="text-[11px] text-slate-400">Net Diff</div>
+              <div class="text-lg sm:text-xl font-bold font-mono" id="revBoDiff">$0.00</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-4 shadow-sm">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-500">Account: Star</span>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-medium" id="revStarCount">0 items</span>
+          </div>
+          <div class="mt-2 flex items-baseline justify-between">
+            <div>
+              <div class="text-[11px] text-slate-400">Paid / Refunded</div>
+              <div class="text-xs sm:text-sm font-mono font-semibold text-slate-700 mt-0.5" id="revStarFlow">$0.00 / $0.00</div>
+            </div>
+            <div class="text-right">
+              <div class="text-[11px] text-slate-400">Net Diff</div>
+              <div class="text-lg sm:text-xl font-bold font-mono" id="revStarDiff">$0.00</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-4 shadow-sm">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-500">Combined & Unpaid</span>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 font-medium" id="revPendingCount">0 unpaid</span>
+          </div>
+          <div class="mt-2 flex items-baseline justify-between">
+            <div>
+              <div class="text-[11px] text-slate-400">Pending Refund</div>
+              <div class="text-xs sm:text-sm font-mono font-semibold text-rose-600 mt-0.5" id="revPendingAmt">$0.00</div>
+            </div>
+            <div class="text-right">
+              <div class="text-[11px] text-slate-400">Total Net Diff</div>
+              <div class="text-lg sm:text-xl font-bold font-mono" id="revAllDiff">$0.00</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filter & Controls -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-sm space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-1.5">
+            <button onclick="switchReviewAccount('Bo')" id="revTab-Bo" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white transition">Bo</button>
+            <button onclick="switchReviewAccount('Star')" id="revTab-Star" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Star</button>
+            <button onclick="switchReviewAccount('ALL')" id="revTab-ALL" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition">All</button>
+          </div>
+          <button onclick="addReviewRow()" class="px-3 py-1.5 rounded-xl bg-emerald-600 active:bg-emerald-700 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition">
+            + Add Entry
+          </button>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <input type="text" id="revSearchInput" oninput="renderReviewTable()" placeholder="Search product..." class="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <select id="revStatusFilter" onchange="renderReviewTable()" class="w-full rounded-lg border border-slate-300 px-2.5 py-2 text-xs bg-white">
+            <option value="ALL">All Statuses</option>
+            <option value="UNPAID">Unpaid (Refund = 0)</option>
+            <option value="UNSUBMITTED">No Submit Date</option>
+            <option value="PROFIT">Profit (+)</option>
+            <option value="LOSS">Discounted (-)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Mobile Review Cards -->
+      <div id="reviewMobileCards" class="md:hidden space-y-3"></div>
+
+      <!-- Desktop Review Table -->
+      <div class="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs text-left border-collapse">
+            <thead class="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+              <tr>
+                <th class="py-2.5 px-3 w-20">Account</th>
+                <th class="py-2.5 px-3 min-w-[160px]">Product</th>
+                <th class="py-2.5 px-3 w-28 text-right">Paid ($)</th>
+                <th class="py-2.5 px-3 w-28 text-center">Date</th>
+                <th class="py-2.5 px-3 w-28 text-right">Refund ($)</th>
+                <th class="py-2.5 px-3 w-28 text-right bg-slate-100/70">Diff ($)</th>
+                <th class="py-2.5 px-3 w-24 text-center">Status</th>
+                <th class="py-2.5 px-2 w-10 text-center"></th>
+              </tr>
+            </thead>
+            <tbody id="reviewTableBody" class="divide-y divide-slate-100"></tbody>
+            <tfoot id="reviewTableFoot" class="bg-slate-50 font-semibold text-slate-800 border-t-2 border-slate-200"></tfoot>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    // ==================== INITIAL DATA ====================
+    const DEFAULT_STATE = {
+      activeTab: 'walgreens',
+      wgActiveId: 'wg-bo-520',
+      wgScenarios: [
+        {
+          id: 'wg-bo-520',
+          name: 'Bo 520',
+          taxRate: 0.086,
+          spendReq: 30,
+          boosterGet: 0,
+          rows: [
+            { product: 'head', price: 7, count: 2, taxable: 1, percentage: 1, mfc: 3, ivc: 8, wc: 0, rr: 4, ibotta: 0, other: 0 },
+            { product: 'Oral', price: 6, count: 2, taxable: 1, percentage: 1, mfc: 6, ivc: 0, wc: 0, rr: 5, ibotta: 0, other: 0 },
+            { product: 'Scott', price: 5, count: 1.5, taxable: 1, percentage: 1, mfc: 2, ivc: 0, wc: 0, rr: 0, ibotta: 0, other: 0 }
+          ]
+        }
+      ],
+      cvsActiveId: 'cvs-bo-1',
+      cvsScenarios: [
+        {
+          id: 'cvs-bo-1',
+          name: 'Bo-1',
+          taxRate: 0.086,
+          rows: [
+            { product: 'Crest', price: 10.79, count: 2, percentage: 1, mfr: 10, crt: 5, eb: 7, ibotta: 0, other: 0 },
+            { product: 'Neutr wipes', price: 7.98, count: 1, percentage: 1, mfr: 4, crt: 0, eb: 3, ibotta: 0, other: 0 }
+          ]
+        }
+      ],
+      frys: {
+        accounts: [
+          { id: 'acc1', email: 'pidan520499', phone: '5204996666' },
+          { id: 'acc2', email: '290861673', phone: '5204991111' },
+          { id: 'acc3', email: 'pidan8074', phone: '5204992222' },
+          { id: 'acc4', email: 'bogong2016', phone: '5204993333' },
+          { id: 'acc5', email: 'starfromaz', phone: '6028421447' },
+          { id: 'acc6', email: 'bostnhome', phone: '6028421440' },
+          { id: 'acc7', email: '', phone: '5204998074' },
+          { id: 'acc8', email: '', phone: '5204427196' }
+        ],
+        deals: [
+          {
+            id: 'd1',
+            name: 'Free colgate',
+            status: {
+              acc1: { buy: false, receive: false }, acc2: { buy: false, receive: false },
+              acc3: { buy: false, receive: false }, acc4: { buy: false, receive: false },
+              acc5: { buy: false, receive: false }, acc6: { buy: false, receive: false },
+              acc7: { buy: false, receive: false }, acc8: { buy: true, receive: true }
+            }
+          },
+          {
+            id: 'd2',
+            name: 'Brawny $2',
+            status: {
+              acc1: { buy: false, receive: false }, acc2: { buy: false, receive: false },
+              acc3: { buy: false, receive: false }, acc4: { buy: false, receive: false },
+              acc5: { buy: false, receive: false }, acc6: { buy: false, receive: false },
+              acc7: { buy: true, receive: true }, acc8: { buy: true, receive: true }
+            }
+          },
+          {
+            id: 'd3',
+            name: 'Dove $3',
+            status: {
+              acc1: { buy: false, receive: false }, acc2: { buy: true, receive: false },
+              acc3: { buy: false, receive: false }, acc4: { buy: false, receive: false },
+              acc5: { buy: false, receive: false }, acc6: { buy: false, receive: false },
+              acc7: { buy: true, receive: false }, acc8: { buy: true, receive: false }
+            }
+          },
+          {
+            id: 'd4',
+            name: 'Viva cottoneLle',
+            status: {
+              acc1: { buy: false, receive: false }, acc2: { buy: true, receive: true },
+              acc3: { buy: true, receive: true }, acc4: { buy: true, receive: true },
+              acc5: { buy: false, receive: false }, acc6: { buy: false, receive: false },
+              acc7: { buy: true, receive: true }, acc8: { buy: false, receive: false }
+            }
+          },
+          {
+            id: 'd5',
+            name: 'Dove $2',
+            status: {
+              acc1: { buy: false, receive: false }, acc2: { buy: true, receive: false },
+              acc3: { buy: true, receive: false }, acc4: { buy: true, receive: false },
+              acc5: { buy: false, receive: false }, acc6: { buy: false, receive: false },
+              acc7: { buy: true, receive: false }, acc8: { buy: true, receive: false }
+            }
+          }
+        ]
+      },
+      reviewAccountFilter: 'Bo',
+      reviews: [
+        { id: 'r1', account: 'Bo', product: '打气', cost: 65.15, submitDate: '5/28', received: 65.58 },
+        { id: 'r2', account: 'Bo', product: '风扇 $27.14', cost: 27.14, submitDate: '6/1', received: 32.35 },
+        { id: 'r3', account: 'Bo', product: '猫喝水 $45.6', cost: 45.60, submitDate: '', received: 46.05 },
+        { id: 'r4', account: 'Bo', product: '老鼠药', cost: 34.75, submitDate: '6/13', received: 45.20 },
+        { id: 'r5', account: 'Bo', product: '洗牙套', cost: 54.29, submitDate: '6/30', received: 60.29 },
+        { id: 'r6', account: 'Bo', product: '脖子按摩', cost: 49.74, submitDate: '7/15', received: 49.74 },
+        { id: 'r7', account: 'Bo', product: '清洁猫毛', cost: 14.16, submitDate: '8/25', received: 21.95 },
+        { id: 'r8', account: 'Bo', product: 'RING', cost: 32.72, submitDate: '', received: 32.72 },
+        { id: 'r9', account: 'Bo', product: 'Groom', cost: 32.72, submitDate: '', received: 33.18 },
+        { id: 'r10', account: 'Bo', product: 'Lamp', cost: 32.28, submitDate: '', received: 32.28 },
+        { id: 'r11', account: 'Bo', product: '菜板', cost: 32.71, submitDate: '11/4', received: 32.71 },
+        { id: 'r12', account: 'Bo', product: '超声波动物', cost: 37.08, submitDate: '11/4', received: 47.08 },
+        { id: 'r13', account: 'Bo', product: '围脖', cost: 27.25, submitDate: '11/26', received: 23.98 },
+        { id: 'r14', account: 'Bo', product: '搬家', cost: 12.97, submitDate: '', received: 11.26 },
+        { id: 'r15', account: 'Bo', product: '蒸汽清洁', cost: 65.44, submitDate: '12/28', received: 65.44 },
+        { id: 'r16', account: 'Bo', product: '吸尘器', cost: 32.72, submitDate: '1/20', received: 28.86 },
+        { id: 'r17', account: 'Bo', product: '地毯', cost: 60.63, submitDate: '3/15', received: 43.24 },
+        { id: 'r18', account: 'Bo', product: '猫爪毯子', cost: 18.40, submitDate: '3/21', received: 18.63 },
+        { id: 'r19', account: 'Bo', product: '地毯', cost: 77.97, submitDate: '3/22', received: 61.91 },
+        { id: 'r20', account: 'Bo', product: 'Magic glove', cost: 21.65, submitDate: '', received: 24.78 },
+        { id: 'r21', account: 'Bo', product: 'Solar cleaner', cost: 112.62, submitDate: '', received: 112.82 },
+        { id: 'r22', account: 'Bo', product: '泳池cell', cost: 444.02, submitDate: '', received: 369.00 },
+        { id: 'r23', account: 'Bo', product: '猫屋groom', cost: 291.33, submitDate: '', received: 238.95 },
+        { id: 'r24', account: 'Bo', product: 'Gym', cost: 195.22, submitDate: '', received: 162.35 },
+        { id: 'r25', account: 'Bo', product: 'Pool', cost: 53.05, submitDate: '', received: 49.00 },
+        { id: 'r26', account: 'Bo', product: 'Printer', cost: 38.00, submitDate: '', received: 29.09 },
+        { id: 'r27', account: 'Bo', product: '架子', cost: 48.72, submitDate: '', received: 0 },
+        { id: 'r28', account: 'Bo', product: 'Neck', cost: 32.48, submitDate: '', received: 32.75 },
+        { id: 'r29', account: 'Bo', product: 'Lamp', cost: 49.80, submitDate: '', received: 49.96 },
+        { id: 'r30', account: 'Star', product: 'Noorio', cost: 76.36, submitDate: '10/1', received: 66.62 },
+        { id: 'r31', account: 'Star', product: '菜板', cost: 29.45, submitDate: '10/30', received: 29.91 },
+        { id: 'r32', account: 'Star', product: 'storage', cost: 32.57, submitDate: '7/2', received: 32.76 },
+        { id: 'r33', account: 'Star', product: 'barstool', cost: 335.72, submitDate: '3/21', received: 270.00 },
+        { id: 'r34', account: 'Star', product: '蚊子refill', cost: 21.65, submitDate: '', received: 21.65 }
+      ]
+    };
+
+    const STORAGE_KEY = 'dealcalc_en_v1_state';
+    let state = loadState();
+
+    function loadState() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('yangmaocheng_v2_state');
+        if (saved) return JSON.parse(saved);
+      } catch (e) { console.error(e); }
+      return JSON.parse(JSON.stringify(DEFAULT_STATE));
+    }
+
+    function saveState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        const el = document.getElementById('saveStatus');
+        if (el) {
+          el.textContent = 'Saved ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+      } catch (e) { console.error(e); }
+    }
+
+    function parseNum(v) {
+      if (v === '' || v === null || v === undefined) return 0;
+      const cleaned = String(v).replace(/[^0-9.\-]/g, '');
+      const n = parseFloat(cleaned);
+      return isNaN(n) ? 0 : n;
+    }
+
+    function fmtMoney(n) {
+      const val = Number(n) || 0;
+      const sign = val < 0 ? '-' : '';
+      return sign + '$' + Math.abs(val).toFixed(2);
+    }
+
+    function profitClass(n) {
+      if (n > 0.004) return 'profit-pos';
+      if (n < -0.004) return 'profit-neg';
+      return 'profit-zero';
+    }
+
+    // ==================== TAB NAVIGATION ====================
+    function switchTab(tab) {
+      state.activeTab = tab;
+      saveState();
+      ['walgreens', 'cvs', 'frys', 'review'].forEach(t => {
+        const btn = document.getElementById('tab-' + t);
+        const panel = document.getElementById('panel-' + t);
+        if (t === tab) {
+          btn.classList.add('tab-active');
+          btn.classList.remove('text-slate-500');
+          panel.classList.remove('hidden');
+        } else {
+          btn.classList.remove('tab-active');
+          btn.classList.add('text-slate-500');
+          panel.classList.add('hidden');
+        }
+      });
+    }
+
+    // ==================== WALGREENS CALCULATOR ====================
+    function getActiveWg() {
+      return state.wgScenarios.find(s => s.id === state.wgActiveId) || state.wgScenarios[0];
+    }
+
+    function renderWalgreens() {
+      const sc = getActiveWg();
+      const sel = document.getElementById('wgScenarioSelect');
+      sel.innerHTML = state.wgScenarios.map(s => `<option value="${s.id}" ${s.id === sc.id ? 'selected' : ''}>${s.name}</option>`).join('');
+
+      document.getElementById('wgTaxRate').value = sc.taxRate;
+      document.getElementById('wgSpendReq').value = sc.spendReq;
+      document.getElementById('wgBoosterGet').value = sc.boosterGet;
+
+      let subtotal = 0, totalTax = 0, totalMfc = 0, totalIvc = 0;
+      let totalWc = 0, totalRr = 0, totalIbotta = 0, totalOther = 0;
+
+      const tbody = document.getElementById('wgTableBody');
+      const mobileContainer = document.getElementById('wgMobileCards');
+      let tableRowsHtml = '';
+      let mobileCardsHtml = '';
+
+      sc.rows.forEach((r, idx) => {
+        const rowTotal = parseNum(r.price) * parseNum(r.count) * parseNum(r.percentage);
+        const rowTax = (Number(r.taxable) ? rowTotal * parseNum(sc.taxRate) : 0);
+        const mfc = parseNum(r.mfc);
+        const ivc = parseNum(r.ivc);
+        const wc = parseNum(r.wc);
+        const rr = parseNum(r.rr);
+        const ibotta = parseNum(r.ibotta);
+        const other = parseNum(r.other);
+        const rowEarned = wc + rr + ibotta + other;
+        const rowOut = rowTotal - mfc - ivc + rowTax;
+        const rowProfit = rowEarned - rowOut;
+
+        subtotal += rowTotal;
+        totalTax += rowTax;
+        totalMfc += mfc;
+        totalIvc += ivc;
+        totalWc += wc;
+        totalRr += rr;
+        totalIbotta += ibotta;
+        totalOther += other;
+
+        tableRowsHtml += `
+          <tr class="hover:bg-slate-50/80">
+            <td class="p-1.5 px-3"><input type="text" value="${r.product || ''}" onchange="updateWgRow(${idx}, 'product', this.value)" class="w-full rounded border border-slate-200 px-2 py-1 text-slate-800 font-medium" placeholder="Item name" /></td>
+            <td class="p-1.5 px-2"><input type="text" inputmode="decimal" value="${r.price}" onchange="updateWgRow(${idx}, 'price', this.value)" onfocus="this.select()" class="w-full rounded border border-slate-200 px-1.5 py-1 text-right font-mono" /></td>
+            <td class="p-1.5 px-2"><input type="text" inputmode="decimal" value="${r.count}" onchange="updateWgRow(${idx}, 'count', this.value)" onfocus="this.select()" class="w-full rounded border border-slate-200 px-1.5 py-1 text-right font-mono" /></td>
+            <td class="p-1.5 px-2 text-center">
+              <select onchange="updateWgRow(${idx}, 'taxable', this.value)" class="rounded border border-slate-200 px-1 py-1 font-mono bg-white">
+                <option value="1" ${Number(r.taxable) === 1 ? 'selected' : ''}>1</option>
+                <option value="0" ${Number(r.taxable) === 0 ? 'selected' : ''}>0</option>
+              </select>
+            </td>
+            <td class="p-1.5 px-2"><input type="text" inputmode="decimal" value="${r.percentage}" onchange="updateWgRow(${idx}, 'percentage', this.value)" onfocus="this.select()" class="w-full rounded border border-slate-200 px-1.5 py-1 text-right font-mono" /></td>
+            <td class="p-1.5 px-2 text-right font-mono bg-slate-50/70 text-slate-700">${rowTotal.toFixed(2)}</td>
+            <td class="p-1.5 px-2 text-right font-mono bg-slate-50/70 text-slate-500">${rowTax.toFixed(2)}</td>
+            <td class="p-1.5 px-2"><input type="text" inputmode="decimal" value="${r.mfc}" onchange="updateWgRow(${idx}, 'mfc', this.value)" onfocus="this.select()" class="w-full rounded border border-blue-200/80 bg-blue-50/20 px-1.5 py-1 text-right font-mono" /></td>
+            <td class="p-1.5 px-2"><input type="text" inputmode="decimal" value="${r.ivc}" onchange="updateWgRow(${idx}, 'ivc', this.value)" onfocus="this.select()" class="w-full rounded border border-blue-200/80 bg-blue-50/20 px-1.5 py-1 text-right font-mono" /></td>
+            <td class="p-1.5 px-2"><input type="text" inputmode="decimal" value="${r.wc}" onchange="updateWgRow(${idx}, 'wc', this.value)" onfocus="this.select()" class="w-full rounded border border-purple-200/80 bg-purple-50/20 px-1.5 py-1 text-right font-mono" /></td>
+            <td class="p-1.5 px-2"><input type="text" inputmode="decimal" value="${r.rr}" onchange="updateWgRow(${idx}, 'rr', this.value)" onfocus="this.select()" class="w-full rounded border border-purple-200/80 bg-purple-50/20 px-1.5 py-1 text-right font-mono" /></td>
+            <td class="p-1.5 px-2"><input type="text" inputmode="decimal" value="${r.ibotta}" onchange="updateWgRow(${idx}, 'ibotta', this.value)" onfocus="this.select()" class="w-full rounded border border-purple-200/80 bg-purple-50/20 px-1.5 py-1 text-right font-mono" /></td>
+            <td class="p-1.5 px-2"><input type="text" inputmode="decimal" value="${r.other}" onchange="updateWgRow(${idx}, 'other', this.value)" onfocus="this.select()" class="w-full rounded border border-purple-200/80 bg-purple-50/20 px-1.5 py-1 text-right font-mono" /></td>
+            <td class="p-1.5 px-3 text-right font-mono bg-slate-50/70 ${profitClass(rowProfit)}">${fmtMoney(rowProfit)}</td>
+            <td class="p-1.5 px-2 text-center"><button onclick="removeWgRow(${idx})" class="text-slate-400 hover:text-rose-600 font-bold text-base" title="Delete">×</button></td>
+          </tr>
+        `;
+
+        mobileCardsHtml += `
+          <div class="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-xs space-y-3">
+            <div class="flex items-center justify-between gap-2">
+              <input type="text" value="${r.product || ''}" onchange="updateWgRow(${idx}, 'product', this.value)" placeholder="Item name..." class="flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <div class="text-right shrink-0">
+                <div class="text-[10px] text-slate-400">Profit</div>
+                <div class="text-sm font-mono ${profitClass(rowProfit)}">${fmtMoney(rowProfit)}</div>
+              </div>
+              <button onclick="removeWgRow(${idx})" class="w-7 h-7 rounded-lg bg-slate-100 text-slate-500 active:bg-rose-100 active:text-rose-600 flex items-center justify-center font-bold">×</button>
+            </div>
+
+            <div class="grid grid-cols-4 gap-2">
+              <div>
+                <label class="block text-[10px] text-slate-500 mb-0.5">Price</label>
+                <input type="text" inputmode="decimal" value="${r.price}" onchange="updateWgRow(${idx}, 'price', this.value)" onfocus="this.select()" class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-right font-mono text-sm" />
+              </div>
+              <div>
+                <label class="block text-[10px] text-slate-500 mb-0.5">Qty</label>
+                <input type="text" inputmode="decimal" value="${r.count}" onchange="updateWgRow(${idx}, 'count', this.value)" onfocus="this.select()" class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-right font-mono text-sm" />
+              </div>
+              <div>
+                <label class="block text-[10px] text-slate-500 mb-0.5">Pct</label>
+                <input type="text" inputmode="decimal" value="${r.percentage}" onchange="updateWgRow(${idx}, 'percentage', this.value)" onfocus="this.select()" class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-right font-mono text-sm" />
+              </div>
+              <div>
+                <label class="block text-[10px] text-slate-500 mb-0.5">Tax</label>
+                <select onchange="updateWgRow(${idx}, 'taxable', this.value)" class="w-full rounded-lg border border-slate-300 px-1.5 py-1.5 font-mono text-sm bg-white text-center">
+                  <option value="1" ${Number(r.taxable) === 1 ? 'selected' : ''}>1</option>
+                  <option value="0" ${Number(r.taxable) === 0 ? 'selected' : ''}>0</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
+              <div>
+                <label class="block text-[10px] text-blue-700 font-medium mb-0.5">MFC ($)</label>
+                <input type="text" inputmode="decimal" value="${r.mfc}" onchange="updateWgRow(${idx}, 'mfc', this.value)" onfocus="this.select()" class="w-full rounded-lg border border-blue-200 bg-blue-50/30 px-2 py-1.5 text-right font-mono text-sm" />
+              </div>
+              <div>
+                <label class="block text-[10px] text-blue-700 font-medium mb-0.5">IVC / SC ($)</label>
+                <input type="text" inputmode="decimal" value="${r.ivc}" onchange="updateWgRow(${idx}, 'ivc', this.value)" onfocus="this.select()" class="w-full rounded-lg border border-blue-200 bg-blue-50/30 px-2 py-1.5 text-right font-mono text-sm" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-4 gap-2 pt-1 border-t border-slate-100">
+              <div>
+                <label class="block text-[10px] text-purple-700 font-medium mb-0.5">WC</label>
+                <input type="text" inputmode="decimal" value="${r.wc}" onchange="updateWgRow(${idx}, 'wc', this.value)" onfocus="this.select()" class="w-full rounded-lg border border-purple-200 bg-purple-50/30 px-2 py-1.5 text-right font-mono text-sm" />
+              </div>
+              <div>
+                <label class="block text-[10px] text-purple-700 font-medium mb-0.5">RR</label>
+                <input type="text" inputmode="decimal" value="${r.rr}" onchange="updateWgRow(${idx}, 'rr', this.value)" onfocus="this.select()" class="w-full rounded-lg border border-purple-200 bg-purple-50/30 px-2 py-1.5 text-right font-mono text-sm" />
+              </div>
+              <div>
+                <label class="block text-[10px] text-purple-700 font-medium mb-0.5">Ibotta</label>
+                <input type="text" inputmode="decimal" value="${r.ibotta}" onchange="updateWgRow(${idx}, 'ibotta', this.value)" onfocus="this.select()" class="w-full rounded-lg border border-purple-200 bg-purple-50/30 px-2 py-1.5 text-right font-mono text-sm" />
+              </div>
+              <div>
+                <label class="block text-[10px] text-purple-700 font-medium mb-0.5">Other</label>
+                <input type="text" inputmode="decimal" value="${r.other}" onchange="updateWgRow(${idx}, 'other', this.value)" onfocus="this.select()" class="w-full rounded-lg border border-purple-200 bg-purple-50/30 px-2 py-1.5 text-right font-mono text-sm" />
+              </div>
+            </div>
+
+            <div class="flex justify-between items-center text-[11px] text-slate-500 bg-slate-50 px-2.5 py-1.5 rounded-lg font-mono">
+              <span>Sub: $${rowTotal.toFixed(2)}</span>
+              <span>Tax: $${rowTax.toFixed(2)}</span>
+              <span>OOP: $${rowOut.toFixed(2)}</span>
+            </div>
+          </div>
+        `;
+      });
+
+      tbody.innerHTML = tableRowsHtml;
+      mobileContainer.innerHTML = mobileCardsHtml;
+
+      const totalSpend = subtotal - totalIvc;
+      const spendReq = parseNum(sc.spendReq);
+      const boosterGet = parseNum(sc.boosterGet);
+      const boosterEarned = (spendReq > 0 && totalSpend >= spendReq) ? boosterGet : (spendReq === 0 ? boosterGet : 0);
+      const canUseWc = spendReq > 0 ? Math.max(0, Math.floor(totalSpend - spendReq)) : Math.max(0, Math.floor(subtotal - totalMfc - totalIvc));
+      const totalAfterTax = subtotal - totalMfc - totalIvc + totalTax;
+      const totalEarned = totalWc + totalRr + totalIbotta + totalOther + boosterEarned;
+      const netProfit = totalEarned - totalAfterTax;
+
+      document.getElementById('wgTableFoot').innerHTML = `
+        <tr>
+          <td colspan="5" class="py-2.5 px-3 text-right text-slate-500">TOTAL</td>
+          <td class="py-2.5 px-2 text-right font-mono">${subtotal.toFixed(2)}</td>
+          <td class="py-2.5 px-2 text-right font-mono">${totalTax.toFixed(2)}</td>
+          <td class="py-2.5 px-2 text-right font-mono text-blue-700">${totalMfc.toFixed(2)}</td>
+          <td class="py-2.5 px-2 text-right font-mono text-blue-700">${totalIvc.toFixed(2)}</td>
+          <td class="py-2.5 px-2 text-right font-mono text-purple-700">${totalWc.toFixed(2)}</td>
+          <td class="py-2.5 px-2 text-right font-mono text-purple-700">${totalRr.toFixed(2)}</td>
+          <td class="py-2.5 px-2 text-right font-mono text-purple-700">${totalIbotta.toFixed(2)}</td>
+          <td class="py-2.5 px-2 text-right font-mono text-purple-700">${totalOther.toFixed(2)}</td>
+          <td class="py-2.5 px-3 text-right font-mono ${profitClass(netProfit)}">${fmtMoney(netProfit)}</td>
+          <td></td>
+        </tr>
+      `;
+
+      document.getElementById('wgKpiSubtotal').textContent = fmtMoney(subtotal);
+      document.getElementById('wgKpiTax').textContent = `Tax: ${fmtMoney(totalTax)}`;
+      document.getElementById('wgKpiTotalSpend').textContent = fmtMoney(totalSpend);
+      const spendStatus = document.getElementById('wgKpiSpendStatus');
+      if (spendReq > 0) {
+        if (totalSpend >= spendReq) {
+          spendStatus.textContent = `Met $${spendReq} (+$${(totalSpend - spendReq).toFixed(2)})`;
+          spendStatus.className = 'text-[11px] mt-0.5 font-semibold text-emerald-700 leading-tight';
+        } else {
+          spendStatus.textContent = `Need $${(spendReq - totalSpend).toFixed(2)} more`;
+          spendStatus.className = 'text-[11px] mt-0.5 font-semibold text-rose-600 leading-tight';
+        }
+      } else {
+        spendStatus.textContent = 'No spend req';
+        spendStatus.className = 'text-[11px] mt-0.5 text-slate-500 leading-tight';
+      }
+
+      document.getElementById('wgKpiCanUseWc').textContent = fmtMoney(canUseWc);
+      document.getElementById('wgKpiAfterTax').textContent = fmtMoney(totalAfterTax);
+      document.getElementById('wgKpiCoupons').textContent = `MFC: $${totalMfc.toFixed(2)} | IVC: $${totalIvc.toFixed(2)}`;
+      document.getElementById('wgKpiEarned').textContent = fmtMoney(totalEarned);
+      document.getElementById('wgKpiEarnedBreak').textContent = `WC $${totalWc} + RR $${totalRr} + Ib $${totalIbotta} + Bst $${boosterEarned}`;
+
+      const profitCard = document.getElementById('wgProfitCard');
+      const profitEl = document.getElementById('wgKpiProfit');
+      const verdictEl = document.getElementById('wgKpiVerdict');
+      profitEl.textContent = fmtMoney(netProfit);
+      if (netProfit >= 0) {
+        profitCard.className = 'p-3 rounded-xl bg-emerald-50 border border-emerald-200';
+        profitEl.className = 'text-xl sm:text-2xl font-bold mt-0.5 font-mono text-emerald-700';
+        verdictEl.textContent = netProfit > 0 ? 'Moneymaker!' : 'Freebie';
+        verdictEl.className = 'text-[11px] font-semibold mt-0.5 text-emerald-700';
+      } else {
+        profitCard.className = 'p-3 rounded-xl bg-rose-50 border border-rose-200';
+        profitEl.className = 'text-xl sm:text-2xl font-bold mt-0.5 font-mono text-rose-700';
+        verdictEl.textContent = `Net Cost: ${fmtMoney(Math.abs(netProfit))}`;
+        verdictEl.className = 'text-[11px] font-semibold mt-0.5 text-rose-700';
+      }
+    }
+
+    function updateWgRow(idx, field, val) {
+      const sc = getActiveWg();
+      sc.rows[idx][field] = field === 'product' ? val : parseNum(val);
+      saveState();
+      renderWalgreens();
+    }
+    function addWgRow() {
+      getActiveWg().rows.push({ product: '', price: 0, count: 1, taxable: 1, percentage: 1, mfc: 0, ivc: 0, wc: 0, rr: 0, ibotta: 0, other: 0 });
+      saveState();
+      renderWalgreens();
+    }
+    function removeWgRow(idx) {
+      getActiveWg().rows.splice(idx, 1);
+      saveState();
+      renderWalgreens();
+    }
+    function updateWgMeta() {
+      const sc = getActiveWg();
+      sc.taxRate = parseNum(document.getElementById('wgTaxRate').value);
+      sc.spendReq = parseNum(document.getElementById('wgSpendReq').value);
+      sc.boosterGet = parseNum(document.getElementById('wgBoosterGet').value);
+      saveState();
+      renderWalgreens();
+    }
+    function switchWgScenario(id) {
+      state.wgActiveId = id;
+      saveState();
+      renderWalgreens();
+    }
+    function addWgScenario() {
+      const name = prompt('New Walgreens scenario name:');
+      if (!name) return;
+      const id = 'wg-' + Date.now();
+      state.wgScenarios.push({
+        id, name, taxRate: 0.086, spendReq: 30, boosterGet: 7,
+        rows: [{ product: '', price: 0, count: 1, taxable: 1, percentage: 1, mfc: 0, ivc: 0, wc: 0, rr: 0, ibotta: 0, other: 0 }]
+      });
+      state.wgActiveId = id;
+      saveState();
+      renderWalgreens();
+    }
+    function duplicateWgScenario() {
+      const cur = getActiveWg();
+      const name = prompt('Duplicate scenario name:', cur.name + ' (Copy)');
+      if (!name) return;
+      const copy = JSON.parse(JSON.stringify(cur));
+      copy.id = 'wg-' + Date.now();
+      copy.name = name;
+      state.wgScenarios.push(copy);
+      state.wgActiveId = copy.id;
+      saveState();
+      renderWalgreens();
+    }
+    function deleteWgScenario() {
+      if (state.wgScenarios.length <= 1) return alert('At least one scenario is required.');
+      if (!confirm('Delete current scenario?')) return;
+      state.wgScenarios = state.wgScenarios.filter(s => s.id !== state.wgActiveId);
+      state.wgActiveId = state.wgScenarios[0].id;
+      saveState();
+      renderWalgreens();
+    }
+
+    // ==================== CVS CALCULATOR ====================
+    function getActiveCvs() {
+      return state.cvsScenarios.find(s => s.id === state.cvsActiveId) || state.cvsScenarios[0];
+    }
+
+    function renderCvs() {
+      const sc = getActiveCvs();
+      const sel = document.getElementById('cvsScenarioSelect');
+      sel.innerHTML = state.cvsScenarios.map(s => `<option value="${s.id}" ${s.id === sc.id ? 'selected' : ''}>${s.name}</option>`).join('');
+      document.getElementById('cvsTaxRate').value = sc.taxRate;
+
+      let subtotal = 0, totalMfr = 0, totalCrt = 0, totalBeforeTax = 0;
+      let totalEb = 0, totalIbotta = 0, totalOther = 0, totalProfit = 0, totalAfterTax = 0;
+
+      const tbody = document.getElementById('cvsTableBody');
+      const mobileContainer = document.getElementById('cvsMobileCards');
+      let tableRowsHtml = '';
+      let mobileCardsHtml = '';
+
+      sc.rows.forEach((r, idx) => {
+        const sub = parseNum(r.price) * parseNum(r.count) * parseNum(r.percentage);
+        const mfr = parseNum(r.mfr);
+        const crt = parseNum(r.crt);
+        const beforeTax = sub - mfr - crt;
+        const rowTax = Math.max(0, sub - crt) * parseNum(sc.taxRate);
+        const afterTax = beforeTax + rowTax;
+        const eb = parseNum(r.eb);
+        const ibotta = parseNum(r.ibotta);
+        const other = parseNum(r.other);
+        const rowProfit = (eb + ibotta + other) - afterTax;
+
+        subtotal += sub;
+        totalMfr += mfr;
+        totalCrt += crt;
+        totalBeforeTax += beforeTax;
+        totalAfterTax += afterTax;
+        totalEb += eb;
+        totalIbotta += ibotta;
+        totalOther += other;
+        totalProfit += rowProfit;
+
+        tableRowsHtml += `
+          <tr class="hover:bg-slate-50/80">
+            <td class="p-1.5 px-3"><input type="text" value="${r.product || ''}" onchange="updateCvsRow(${idx}, 'product', this.value)" class="w-full rounded border border-slate-200 px-2 py-1 text-slate-800 font-medium" placeholder="Item name" /></td>
+            <td class="p-1.5 px-2"><input type="text" inputmode="decimal" value="${r.price}" onchange="updateCvsRow(${idx}, 'price', this.value)" onfocus="this.select()" class="w-full rounded border border-slate-200 px-1.5 py-1 text-right font-mono" /></td>
+            <td class="p-1.5 px-2"><input type="text" inputmode="decimal" value="${r.count}" onchange="updateCvsRow(${idx}, 'count', this.value)" onfocus="this.select()" class="w-full rounded border border-slate-200 px-1.5 py-1 text-right font-mono" /></td>
+            <td class="p-1.5 px-2"><input type="text" inputmode="decimal" value="${r.percentage}" onchange="updateCvsRow(${idx}, 'percentage', this.value)" onfocus="this.select()" class="w-full rounded border border-slate-200 px-1.5 py-1 text-right font-mono" /></td>
+            <td class="p-1.5 px-2 text-right font-mono bg-slate-50/70 text-slate-700">${sub.toFixed(2)}</td>
+            <td class="p-1.5 px-2"><input type="text" inputmode="decimal" value="${r.mfr}" onchange="updateCvsRow(${idx}, 'mfr', this.value)" onfocus="this.select()" class="w-full rounded border border-blue-200/80 bg-blue-50/20 px-1.5 py-1 text-right font-mono" /></td>
+            <td class="p-1.5 px-2"><input type="text" inputmode="decimal" value="${r.crt}" onchange="updateCvsRow(${idx}, 'crt', this.value)" onfocus="this.select()" class="w-full rounded border border-blue-200/80 bg-blue-50/20 px-1.5 py-1 text-right font-mono" /></td>
+            <td class="p-1.5 px-2 text-right font-mono bg-slate-50/70 text-slate-700">${beforeTax.toFixed(2)}</td>
+            <td class="p-1.5 px-2"><input type="text" inputmode="decimal" value="${r.eb}" onchange="updateCvsRow(${idx}, 'eb', this.value)" onfocus="this.select()" class="w-full rounded border border-purple-200/80 bg-purple-50/20 px-1.5 py-1 text-right font-mono" /></td>
+            <td class="p-1.5 px-2"><input type="text" inputmode="decimal" value="${r.ibotta}" onchange="updateCvsRow(${idx}, 'ibotta', this.value)" onfocus="this.select()" class="w-full rounded border border-purple-200/80 bg-purple-50/20 px-1.5 py-1 text-right font-mono" /></td>
+            <td class="p-1.5 px-2"><input type="text" inputmode="decimal" value="${r.other}" onchange="updateCvsRow(${idx}, 'other', this.value)" onfocus="this.select()" class="w-full rounded border border-purple-200/80 bg-purple-50/20 px-1.5 py-1 text-right font-mono" /></td>
+            <td class="p-1.5 px-3 text-right font-mono bg-slate-50/70 ${profitClass(rowProfit)}">${fmtMoney(rowProfit)}</td>
+            <td class="p-1.5 px-2 text-center"><button onclick="removeCvsRow(${idx})" class="text-slate-400 hover:text-rose-600 font-bold text-base" title="Delete">×</button></td>
+          </tr>
+        `;
+
+        mobileCardsHtml += `
+          <div class="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-xs space-y-3">
+            <div class="flex items-center justify-between gap-2">
+              <input type="text" value="${r.product || ''}" onchange="updateCvsRow(${idx}, 'product', this.value)" placeholder="Item name..." class="flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500" />
+              <div class="text-right shrink-0">
+                <div class="text-[10px] text-slate-400">Profit</div>
+                <div class="text-sm font-mono ${profitClass(rowProfit)}">${fmtMoney(rowProfit)}</div>
+              </div>
+              <button onclick="removeCvsRow(${idx})" class="w-7 h-7 rounded-lg bg-slate-100 text-slate-500 active:bg-rose-100 active:text-rose-600 flex items-center justify-center font-bold">×</button>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2">
+              <div>
+                <label class="block text-[10px] text-slate-500 mb-0.5">Price</label>
+                <input type="text" inputmode="decimal" value="${r.price}" onchange="updateCvsRow(${idx}, 'price', this.value)" onfocus="this.select()" class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-right font-mono text-sm" />
+              </div>
+              <div>
+                <label class="block text-[10px] text-slate-500 mb-0.5">Qty</label>
+                <input type="text" inputmode="decimal" value="${r.count}" onchange="updateCvsRow(${idx}, 'count', this.value)" onfocus="this.select()" class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-right font-mono text-sm" />
+              </div>
+              <div>
+                <label class="block text-[10px] text-slate-500 mb-0.5">Pct</label>
+                <input type="text" inputmode="decimal" value="${r.percentage}" onchange="updateCvsRow(${idx}, 'percentage', this.value)" onfocus="this.select()" class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-right font-mono text-sm" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
+              <div>
+                <label class="block text-[10px] text-blue-700 font-medium mb-0.5">MFR ($)</label>
+                <input type="text" inputmode="decimal" value="${r.mfr}" onchange="updateCvsRow(${idx}, 'mfr', this.value)" onfocus="this.select()" class="w-full rounded-lg border border-blue-200 bg-blue-50/30 px-2 py-1.5 text-right font-mono text-sm" />
+              </div>
+              <div>
+                <label class="block text-[10px] text-blue-700 font-medium mb-0.5">CRT ($)</label>
+                <input type="text" inputmode="decimal" value="${r.crt}" onchange="updateCvsRow(${idx}, 'crt', this.value)" onfocus="this.select()" class="w-full rounded-lg border border-blue-200 bg-blue-50/30 px-2 py-1.5 text-right font-mono text-sm" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 pt-1 border-t border-slate-100">
+              <div>
+                <label class="block text-[10px] text-purple-700 font-medium mb-0.5">EB</label>
+                <input type="text" inputmode="decimal" value="${r.eb}" onchange="updateCvsRow(${idx}, 'eb', this.value)" onfocus="this.select()" class="w-full rounded-lg border border-purple-200 bg-purple-50/30 px-2 py-1.5 text-right font-mono text-sm" />
+              </div>
+              <div>
+                <label class="block text-[10px] text-purple-700 font-medium mb-0.5">Ibotta</label>
+                <input type="text" inputmode="decimal" value="${r.ibotta}" onchange="updateCvsRow(${idx}, 'ibotta', this.value)" onfocus="this.select()" class="w-full rounded-lg border border-purple-200 bg-purple-50/30 px-2 py-1.5 text-right font-mono text-sm" />
+              </div>
+              <div>
+                <label class="block text-[10px] text-purple-700 font-medium mb-0.5">Other</label>
+                <input type="text" inputmode="decimal" value="${r.other}" onchange="updateCvsRow(${idx}, 'other', this.value)" onfocus="this.select()" class="w-full rounded-lg border border-purple-200 bg-purple-50/30 px-2 py-1.5 text-right font-mono text-sm" />
+              </div>
+            </div>
+
+            <div class="flex justify-between items-center text-[11px] text-slate-500 bg-slate-50 px-2.5 py-1.5 rounded-lg font-mono">
+              <span>Sub: $${sub.toFixed(2)}</span>
+              <span>Pre-Tax: $${beforeTax.toFixed(2)}</span>
+              <span>OOP: $${afterTax.toFixed(2)}</span>
+            </div>
+          </div>
+        `;
+      });
+
+      tbody.innerHTML = tableRowsHtml;
+      mobileContainer.innerHTML = mobileCardsHtml;
+
+      const canUseEb = Math.max(0, totalBeforeTax);
+      const totalEarned = totalEb + totalIbotta + totalOther;
+
+      document.getElementById('cvsTableFoot').innerHTML = `
+        <tr>
+          <td colspan="4" class="py-2.5 px-3 text-right text-slate-500">TOTAL</td>
+          <td class="py-2.5 px-2 text-right font-mono">${subtotal.toFixed(2)}</td>
+          <td class="py-2.5 px-2 text-right font-mono text-blue-700">${totalMfr.toFixed(2)}</td>
+          <td class="py-2.5 px-2 text-right font-mono text-blue-700">${totalCrt.toFixed(2)}</td>
+          <td class="py-2.5 px-2 text-right font-mono">${totalBeforeTax.toFixed(2)}</td>
+          <td class="py-2.5 px-2 text-right font-mono text-purple-700">${totalEb.toFixed(2)}</td>
+          <td class="py-2.5 px-2 text-right font-mono text-purple-700">${totalIbotta.toFixed(2)}</td>
+          <td class="py-2.5 px-2 text-right font-mono text-purple-700">${totalOther.toFixed(2)}</td>
+          <td class="py-2.5 px-3 text-right font-mono ${profitClass(totalProfit)}">${fmtMoney(totalProfit)}</td>
+          <td></td>
+        </tr>
+      `;
+
+      document.getElementById('cvsKpiSubtotal').textContent = fmtMoney(subtotal);
+      document.getElementById('cvsKpiCoupons').textContent = `MFR: $${totalMfr.toFixed(2)} | CRT: $${totalCrt.toFixed(2)}`;
+      document.getElementById('cvsKpiCanUseEb').textContent = fmtMoney(canUseEb);
+      document.getElementById('cvsKpiAfterTax').textContent = fmtMoney(totalAfterTax);
+      document.getElementById('cvsKpiBeforeTax').textContent = `Pre-Tax: ${fmtMoney(totalBeforeTax)}`;
+      document.getElementById('cvsKpiEarned').textContent = fmtMoney(totalEarned);
+      document.getElementById('cvsKpiEarnedBreak').textContent = `EB $${totalEb} + Ibotta $${totalIbotta} + Other $${totalOther}`;
+
+      const profitCard = document.getElementById('cvsProfitCard');
+      const profitEl = document.getElementById('cvsKpiProfit');
+      const verdictEl = document.getElementById('cvsKpiVerdict');
+      profitEl.textContent = fmtMoney(totalProfit);
+      if (totalProfit >= 0) {
+        profitCard.className = 'col-span-2 sm:col-span-1 p-3 rounded-xl bg-emerald-50 border border-emerald-200';
+        profitEl.className = 'text-xl sm:text-2xl font-bold mt-0.5 font-mono text-emerald-700';
+        verdictEl.textContent = totalProfit > 0 ? 'Moneymaker!' : 'Freebie';
+        verdictEl.className = 'text-[11px] font-semibold mt-0.5 text-emerald-700';
+      } else {
+        profitCard.className = 'col-span-2 sm:col-span-1 p-3 rounded-xl bg-rose-50 border border-rose-200';
+        profitEl.className = 'text-xl sm:text-2xl font-bold mt-0.5 font-mono text-rose-700';
+        verdictEl.textContent = `Net Cost: ${fmtMoney(Math.abs(totalProfit))}`;
+        verdictEl.className = 'text-[11px] font-semibold mt-0.5 text-rose-700';
+      }
+    }
+
+    function updateCvsRow(idx, field, val) {
+      const sc = getActiveCvs();
+      sc.rows[idx][field] = field === 'product' ? val : parseNum(val);
+      saveState();
+      renderCvs();
+    }
+    function addCvsRow() {
+      getActiveCvs().rows.push({ product: '', price: 0, count: 1, percentage: 1, mfr: 0, crt: 0, eb: 0, ibotta: 0, other: 0 });
+      saveState();
+      renderCvs();
+    }
+    function removeCvsRow(idx) {
+      getActiveCvs().rows.splice(idx, 1);
+      saveState();
+      renderCvs();
+    }
+    function updateCvsMeta() {
+      getActiveCvs().taxRate = parseNum(document.getElementById('cvsTaxRate').value);
+      saveState();
+      renderCvs();
+    }
+    function switchCvsScenario(id) {
+      state.cvsActiveId = id;
+      saveState();
+      renderCvs();
+    }
+    function addCvsScenario() {
+      const name = prompt('New CVS scenario name:');
+      if (!name) return;
+      const id = 'cvs-' + Date.now();
+      state.cvsScenarios.push({
+        id, name, taxRate: 0.086,
+        rows: [{ product: '', price: 0, count: 1, percentage: 1, mfr: 0, crt: 0, eb: 0, ibotta: 0, other: 0 }]
+      });
+      state.cvsActiveId = id;
+      saveState();
+      renderCvs();
+    }
+    function duplicateCvsScenario() {
+      const cur = getActiveCvs();
+      const name = prompt('Duplicate scenario name:', cur.name + ' (Copy)');
+      if (!name) return;
+      const copy = JSON.parse(JSON.stringify(cur));
+      copy.id = 'cvs-' + Date.now();
+      copy.name = name;
+      state.cvsScenarios.push(copy);
+      state.cvsActiveId = copy.id;
+      saveState();
+      renderCvs();
+    }
+    function deleteCvsScenario() {
+      if (state.cvsScenarios.length <= 1) return alert('At least one scenario is required.');
+      if (!confirm('Delete current scenario?')) return;
+      state.cvsScenarios = state.cvsScenarios.filter(s => s.id !== state.cvsActiveId);
+      state.cvsActiveId = state.cvsScenarios[0].id;
+      saveState();
+      renderCvs();
+    }
+
+    // ==================== FRY'S WEEKLY DEALS ====================
+    function renderFrys() {
+      const { accounts, deals } = state.frys;
+      const thead = document.getElementById('frysTableHead');
+      const tbody = document.getElementById('frysTableBody');
+
+      let h1 = `<tr>
+        <th rowspan="2" class="py-2.5 px-3 min-w-[135px] sm:min-w-[160px] bg-slate-100 border-r border-slate-200 sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">
+          <div class="font-bold text-slate-800">Weekly Deal</div>
+        </th>`;
+
+      accounts.forEach((acc, aIdx) => {
+        h1 += `
+          <th colspan="2" class="py-2 px-1.5 text-center border-r border-slate-200 min-w-[110px] sm:min-w-[125px] bg-slate-50">
+            <div class="flex items-center justify-between gap-1">
+              <input type="text" value="${acc.email}" onchange="updateFrysAccount(${aIdx}, 'email', this.value)" placeholder="Account" class="w-full text-center font-semibold text-slate-800 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none text-xs" />
+              <button onclick="removeFrysAccount(${aIdx})" class="text-slate-300 hover:text-rose-500 text-sm px-1" title="Remove">×</button>
+            </div>
+            <input type="text" inputmode="tel" value="${acc.phone}" onchange="updateFrysAccount(${aIdx}, 'phone', this.value)" placeholder="Phone" class="w-full text-center font-mono text-[11px] text-slate-500 bg-transparent mt-0.5 focus:outline-none" />
+          </th>`;
+      });
+      h1 += `<th rowspan="2" class="py-2.5 px-2.5 text-center bg-slate-100 min-w-[85px]">Progress</th></tr>`;
+
+      let h2 = `<tr class="text-[10px] sm:text-[11px] text-slate-500 bg-slate-100/70">`;
+      accounts.forEach(() => {
+        h2 += `<th class="py-1.5 px-1 text-center border-r border-slate-100">Buy</th><th class="py-1.5 px-1 text-center border-r border-slate-200">Rec</th>`;
+      });
+      h2 += `</tr>`;
+      thead.innerHTML = h1 + h2;
+
+      tbody.innerHTML = deals.map((deal, dIdx) => {
+        let buyCount = 0, recCount = 0;
+        let cells = accounts.map(acc => {
+          const st = deal.status[acc.id] || { buy: false, receive: false };
+          if (st.buy) buyCount++;
+          if (st.receive) recCount++;
+          const bg = st.receive ? 'bg-emerald-50/80' : (st.buy ? 'bg-amber-50/80' : '');
+          return `
+            <td class="py-3 px-1 text-center border-r border-slate-100 ${bg}">
+              <input type="checkbox" ${st.buy ? 'checked' : ''} onchange="toggleFrysStatus(${dIdx}, '${acc.id}', 'buy', this.checked)" class="w-5 h-5 rounded text-amber-500 focus:ring-amber-400 cursor-pointer" />
+            </td>
+            <td class="py-3 px-1 text-center border-r border-slate-200 ${bg}">
+              <input type="checkbox" ${st.receive ? 'checked' : ''} onchange="toggleFrysStatus(${dIdx}, '${acc.id}', 'receive', this.checked)" class="w-5 h-5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
+            </td>
+          `;
+        }).join('');
+
+        return `
+          <tr class="hover:bg-slate-50/60">
+            <td class="py-2.5 px-2.5 bg-white border-r border-slate-200 sticky left-0 z-10 font-semibold text-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">
+              <div class="flex items-center justify-between gap-1">
+                <input type="text" value="${deal.name}" onchange="updateFrysDealName(${dIdx}, this.value)" class="w-full bg-transparent font-semibold text-slate-800 focus:outline-none focus:underline text-xs" />
+                <button onclick="removeFrysDeal(${dIdx})" class="text-slate-300 hover:text-rose-500 font-bold text-sm px-1" title="Delete">×</button>
+              </div>
+            </td>
+            ${cells}
+            <td class="py-2.5 px-2 text-center font-mono text-[11px]">
+              <span class="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-semibold whitespace-nowrap">${buyCount}B / ${recCount}R</span>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function toggleFrysStatus(dIdx, accId, key, checked) {
+      const deal = state.frys.deals[dIdx];
+      if (!deal.status[accId]) deal.status[accId] = { buy: false, receive: false };
+      deal.status[accId][key] = checked;
+      saveState();
+      renderFrys();
+    }
+    function updateFrysDealName(dIdx, val) {
+      state.frys.deals[dIdx].name = val;
+      saveState();
+    }
+    function addFrysDeal() {
+      const name = prompt('New Fry\'s Deal name:');
+      if (!name) return;
+      const status = {};
+      state.frys.accounts.forEach(a => status[a.id] = { buy: false, receive: false });
+      state.frys.deals.push({ id: 'd-' + Date.now(), name, status });
+      saveState();
+      renderFrys();
+    }
+    function removeFrysDeal(dIdx) {
+      if (!confirm('Delete this deal?')) return;
+      state.frys.deals.splice(dIdx, 1);
+      saveState();
+      renderFrys();
+    }
+    function updateFrysAccount(aIdx, field, val) {
+      state.frys.accounts[aIdx][field] = val;
+      saveState();
+    }
+    function addFrysAccount() {
+      const phone = prompt('Account phone number:');
+      if (!phone) return;
+      const email = prompt('Account email / label (optional):') || '';
+      const id = 'acc-' + Date.now();
+      state.frys.accounts.push({ id, email, phone });
+      state.frys.deals.forEach(d => d.status[id] = { buy: false, receive: false });
+      saveState();
+      renderFrys();
+    }
+    function removeFrysAccount(aIdx) {
+      if (!confirm('Remove this account column?')) return;
+      const accId = state.frys.accounts[aIdx].id;
+      state.frys.accounts.splice(aIdx, 1);
+      state.frys.deals.forEach(d => delete d.status[accId]);
+      saveState();
+      renderFrys();
+    }
+
+    // ==================== REVIEWS TRACKER ====================
+    function switchReviewAccount(acc) {
+      state.reviewAccountFilter = acc;
+      saveState();
+      ['Bo', 'Star', 'ALL'].forEach(k => {
+        const btn = document.getElementById('revTab-' + k);
+        if (k === acc) {
+          btn.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white transition';
+        } else {
+          btn.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition';
+        }
+      });
+      renderReviewTable();
+    }
+
+    function renderReviewTable() {
+      let boCost = 0, boRec = 0, boCnt = 0;
+      let starCost = 0, starRec = 0, starCnt = 0;
+      let pendingCnt = 0, pendingAmt = 0;
+
+      state.reviews.forEach(r => {
+        const c = parseNum(r.cost);
+        const rec = parseNum(r.received);
+        if (r.account === 'Bo') { boCost += c; boRec += rec; boCnt++; }
+        if (r.account === 'Star') { starCost += c; starRec += rec; starCnt++; }
+        if (rec === 0 && c > 0) { pendingCnt++; pendingAmt += c; }
+      });
+
+      const boDiff = boRec - boCost;
+      const starDiff = starRec - starCost;
+      const allDiff = boDiff + starDiff;
+
+      document.getElementById('revBoCount').textContent = `${boCnt} items`;
+      document.getElementById('revBoFlow').textContent = `${fmtMoney(boCost)} / ${fmtMoney(boRec)}`;
+      const boDiffEl = document.getElementById('revBoDiff');
+      boDiffEl.textContent = fmtMoney(boDiff);
+      boDiffEl.className = `text-lg sm:text-xl font-bold font-mono ${profitClass(boDiff)}`;
+
+      document.getElementById('revStarCount').textContent = `${starCnt} items`;
+      document.getElementById('revStarFlow').textContent = `${fmtMoney(starCost)} / ${fmtMoney(starRec)}`;
+      const starDiffEl = document.getElementById('revStarDiff');
+      starDiffEl.textContent = fmtMoney(starDiff);
+      starDiffEl.className = `text-lg sm:text-xl font-bold font-mono ${profitClass(starDiff)}`;
+
+      document.getElementById('revPendingCount').textContent = `${pendingCnt} unpaid`;
+      document.getElementById('revPendingAmt').textContent = fmtMoney(pendingAmt);
+      const allDiffEl = document.getElementById('revAllDiff');
+      allDiffEl.textContent = fmtMoney(allDiff);
+      allDiffEl.className = `text-lg sm:text-xl font-bold font-mono ${profitClass(allDiff)}`;
+
+      const accFilter = state.reviewAccountFilter || 'Bo';
+      const search = (document.getElementById('revSearchInput').value || '').toLowerCase().trim();
+      const statusFilter = document.getElementById('revStatusFilter').value;
+
+      let filteredCost = 0, filteredRec = 0;
+      const tbody = document.getElementById('reviewTableBody');
+      const mobileContainer = document.getElementById('reviewMobileCards');
+
+      let tableRowsHtml = '';
+      let mobileCardsHtml = '';
+
+      state.reviews.forEach((r, idx) => {
+        if (accFilter !== 'ALL' && r.account !== accFilter) return;
+        if (search && !(r.product || '').toLowerCase().includes(search)) return;
+
+        const cost = parseNum(r.cost);
+        const rec = parseNum(r.received);
+        const diff = rec - cost;
+
+        if (statusFilter === 'UNPAID' && rec > 0) return;
+        if (statusFilter === 'UNSUBMITTED' && (r.submitDate || '').trim() !== '') return;
+        if (statusFilter === 'PROFIT' && diff <= 0.004) return;
+        if (statusFilter === 'LOSS' && diff >= -0.004) return;
+
+        filteredCost += cost;
+        filteredRec += rec;
+
+        let badge = '';
+        if (rec === 0 && cost > 0) {
+          badge = '<span class="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-semibold text-[11px]">Unpaid</span>';
+        } else if (diff > 0.004) {
+          badge = '<span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold text-[11px]">Profit</span>';
+        } else if (Math.abs(diff) <= 0.004) {
+          badge = '<span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium text-[11px]">Even</span>';
+        } else {
+          badge = '<span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium text-[11px]">Discounted</span>';
+        }
+
+        tableRowsHtml += `
+          <tr class="hover:bg-slate-50/80">
+            <td class="p-1.5 px-3">
+              <select onchange="updateReviewRow(${idx}, 'account', this.value)" class="rounded border border-slate-200 px-2 py-1 text-xs font-semibold bg-white">
+                <option value="Bo" ${r.account === 'Bo' ? 'selected' : ''}>Bo</option>
+                <option value="Star" ${r.account === 'Star' ? 'selected' : ''}>Star</option>
+              </select>
+            </td>
+            <td class="p-1.5 px-3"><input type="text" value="${r.product || ''}" onchange="updateReviewRow(${idx}, 'product', this.value)" class="w-full rounded border border-slate-200 px-2 py-1 text-slate-800 font-medium" /></td>
+            <td class="p-1.5 px-3"><input type="text" inputmode="decimal" value="${r.cost}" onchange="updateReviewRow(${idx}, 'cost', this.value)" onfocus="this.select()" class="w-full rounded border border-slate-200 px-2 py-1 text-right font-mono" /></td>
+            <td class="p-1.5 px-3"><input type="text" value="${r.submitDate || ''}" onchange="updateReviewRow(${idx}, 'submitDate', this.value)" placeholder="MM/DD" class="w-full rounded border border-slate-200 px-2 py-1 text-center font-mono text-slate-600" /></td>
+            <td class="p-1.5 px-3"><input type="text" inputmode="decimal" value="${r.received}" onchange="updateReviewRow(${idx}, 'received', this.value)" onfocus="this.select()" class="w-full rounded border border-slate-200 px-2 py-1 text-right font-mono" /></td>
+            <td class="p-1.5 px-3 text-right font-mono bg-slate-50/70 ${profitClass(diff)}">${fmtMoney(diff)}</td>
+            <td class="p-1.5 px-3 text-center">${badge}</td>
+            <td class="p-1.5 px-2 text-center"><button onclick="removeReviewRow(${idx})" class="text-slate-400 hover:text-rose-600 font-bold text-base" title="Delete">×</button></td>
+          </tr>
+        `;
+
+        mobileCardsHtml += `
+          <div class="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-xs space-y-2.5">
+            <div class="flex items-center justify-between gap-2">
+              <select onchange="updateReviewRow(${idx}, 'account', this.value)" class="rounded-lg border border-slate-300 px-2 py-1.5 text-xs font-bold bg-slate-50 shrink-0">
+                <option value="Bo" ${r.account === 'Bo' ? 'selected' : ''}>Bo</option>
+                <option value="Star" ${r.account === 'Star' ? 'selected' : ''}>Star</option>
+              </select>
+              <input type="text" value="${r.product || ''}" onchange="updateReviewRow(${idx}, 'product', this.value)" placeholder="Product name" class="flex-1 min-w-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm font-bold text-slate-800" />
+              <button onclick="removeReviewRow(${idx})" class="w-7 h-7 rounded-lg bg-slate-100 text-slate-500 active:bg-rose-100 active:text-rose-600 flex items-center justify-center font-bold shrink-0">×</button>
+            </div>
+            <div class="grid grid-cols-3 gap-2">
+              <div>
+                <label class="block text-[10px] text-slate-500 mb-0.5">Paid ($)</label>
+                <input type="text" inputmode="decimal" value="${r.cost}" onchange="updateReviewRow(${idx}, 'cost', this.value)" onfocus="this.select()" class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-right font-mono text-sm" />
+              </div>
+              <div>
+                <label class="block text-[10px] text-slate-500 mb-0.5">Refund ($)</label>
+                <input type="text" inputmode="decimal" value="${r.received}" onchange="updateReviewRow(${idx}, 'received', this.value)" onfocus="this.select()" class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-right font-mono text-sm" />
+              </div>
+              <div>
+                <label class="block text-[10px] text-slate-500 mb-0.5">Date</label>
+                <input type="text" value="${r.submitDate || ''}" onchange="updateReviewRow(${idx}, 'submitDate', this.value)" placeholder="MM/DD" class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-center font-mono text-sm" />
+              </div>
+            </div>
+            <div class="flex items-center justify-between pt-1 border-t border-slate-100">
+              <div>${badge}</div>
+              <div class="text-xs font-mono">Diff: <span class="text-sm ${profitClass(diff)}">${fmtMoney(diff)}</span></div>
+            </div>
+          </div>
+        `;
+      });
+
+      tbody.innerHTML = tableRowsHtml || `<tr><td colspan="8" class="py-8 text-center text-slate-400">No matching records</td></tr>`;
+      mobileContainer.innerHTML = mobileCardsHtml || `<div class="bg-white rounded-2xl border border-slate-200 py-8 text-center text-xs text-slate-400">No matching records</div>`;
+
+      const filteredDiff = filteredRec - filteredCost;
+      document.getElementById('reviewTableFoot').innerHTML = `
+        <tr>
+          <td colspan="2" class="py-2.5 px-3 text-right text-slate-500">FILTERED TOTAL</td>
+          <td class="py-2.5 px-3 text-right font-mono">${fmtMoney(filteredCost)}</td>
+          <td></td>
+          <td class="py-2.5 px-3 text-right font-mono">${fmtMoney(filteredRec)}</td>
+          <td class="py-2.5 px-3 text-right font-mono ${profitClass(filteredDiff)}">${fmtMoney(filteredDiff)}</td>
+          <td colspan="2"></td>
+        </tr>
+      `;
+    }
+
+    function updateReviewRow(idx, field, val) {
+      state.reviews[idx][field] = (field === 'cost' || field === 'received') ? parseNum(val) : val;
+      saveState();
+      renderReviewTable();
+    }
+    function addReviewRow() {
+      const acc = state.reviewAccountFilter === 'Star' ? 'Star' : 'Bo';
+      state.reviews.unshift({ id: 'r-' + Date.now(), account: acc, product: '', cost: 0, submitDate: '', received: 0 });
+      saveState();
+      renderReviewTable();
+    }
+    function removeReviewRow(idx) {
+      if (!confirm('Delete this entry?')) return;
+      state.reviews.splice(idx, 1);
+      saveState();
+      renderReviewTable();
+    }
+
+    // ==================== BACKUP / RESTORE ====================
+    function exportAllJSON() {
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `dealcalc-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function importAllJSON(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          if (parsed && parsed.wgScenarios && parsed.cvsScenarios) {
+            state = parsed;
+            saveState();
+            initAll();
+            alert('Backup imported successfully.');
+          } else {
+            alert('Invalid JSON format.');
+          }
+        } catch (err) {
+          alert('Failed to parse JSON: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = '';
+    }
+
+    function resetToDefault() {
+      if (!confirm('Reset all local changes back to default data?')) return;
+      state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+      saveState();
+      initAll();
+    }
+
+    function initAll() {
+      switchTab(state.activeTab || 'walgreens');
+      renderWalgreens();
+      renderCvs();
+      renderFrys();
+      switchReviewAccount(state.reviewAccountFilter || 'Bo');
+    }
+
+    initAll();
+  </script>
+</body>
+</html>
+"""
+
+with open('/mnt/data/index.html', 'w', encoding='utf-8') as f:
+    f.write(html_content)
+
+print("Saved clean English /mnt/data/index.html successfully, size:", len(html_content))
