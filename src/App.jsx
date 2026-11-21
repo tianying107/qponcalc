@@ -41,11 +41,15 @@ export default function App() {
 
   const [revSearch, setRevSearch] = useState('');
   const [revStatusFilter, setRevStatusFilter] = useState('ALL');
+  const [expandedWgIdx, setExpandedWgIdx] = useState({});
+  const [expandedCvsIdx, setExpandedCvsIdx] = useState({});
+  const [selectedFrysAccId, setSelectedFrysAccId] = useState(
+    () => state.frys?.accounts?.[0]?.id || ''
+  );
   const syncTimers = useRef({});
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  // Save to localStorage whenever state updates
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -54,7 +58,6 @@ export default function App() {
     }
   }, [state]);
 
-  // Initial pull from Supabase on mount
   useEffect(() => {
     if (supabase) {
       syncFromCloud(false);
@@ -534,6 +537,12 @@ export default function App() {
   const cvsTotalEarned = cvsTotalEb + cvsTotalIbotta + cvsTotalOther;
 
   // ==================== FRY'S HANDLERS ====================
+  const activeFrysAccIndex = Math.max(
+    0,
+    state.frys.accounts.findIndex((a) => a.id === selectedFrysAccId)
+  );
+  const activeFrysAcc = state.frys.accounts[activeFrysAccIndex] || null;
+
   function toggleFrysStatus(dIdx, accId, key, checked) {
     setState((prev) => {
       const deals = [...prev.frys.deals];
@@ -596,16 +605,21 @@ export default function App() {
         deals: prev.frys.deals.map((d) => ({ ...d, status: { ...d.status, [id]: { buy: false, receive: false } } }))
       }
     }));
+    setSelectedFrysAccId(id);
     scheduleSync('frys');
   }
 
   function removeFrysAccount(aIdx) {
     if (!window.confirm('Remove this account column?')) return;
     const accId = state.frys.accounts[aIdx].id;
+    const remainingAccounts = state.frys.accounts.filter((_, i) => i !== aIdx);
+    if (accId === selectedFrysAccId) {
+      setSelectedFrysAccId(remainingAccounts[0]?.id || '');
+    }
     setState((prev) => ({
       ...prev,
       frys: {
-        accounts: prev.frys.accounts.filter((_, i) => i !== aIdx),
+        accounts: remainingAccounts,
         deals: prev.frys.deals.map((d) => {
           const st = { ...d.status };
           delete st[accId];
@@ -621,7 +635,7 @@ export default function App() {
     setState((prev) => ({
       ...prev,
       reviews: prev.reviews.map((r) =>
-        r.id === id ? { ...r, [field]: field === 'cost' || field === 'received' ? parseNum(val) : val } : r
+        r.id === id ? { ...r, [field]: val } : r
       )
     }));
     scheduleSync('reviews');
@@ -686,8 +700,11 @@ export default function App() {
       ? 'bg-rose-500'
       : 'bg-amber-400';
 
+  const inputNumClass =
+    'w-full rounded-lg border border-slate-200 px-2 py-1.5 sm:py-1 text-right font-mono text-sm sm:text-xs bg-white focus:outline-none focus:border-blue-500';
+
   return (
-    <div className="min-h-screen flex flex-col pb-10">
+    <div className="min-h-screen flex flex-col pb-12">
       {/* Top Navbar */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
@@ -701,9 +718,9 @@ export default function App() {
 
             {/* Global Actions */}
             <div className="flex items-center gap-1.5 text-xs">
-              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 font-medium">
+              <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 font-medium">
                 <span className={`w-2 h-2 rounded-full ${syncDotColor}`}></span>
-                <span>{syncStatus.text}</span>
+                <span className="max-w-[78px] sm:max-w-none truncate">{syncStatus.text}</span>
               </div>
               {supabase && (
                 <>
@@ -725,11 +742,11 @@ export default function App() {
               )}
               <button
                 onClick={exportAllJSON}
-                className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-medium transition"
+                className="hidden sm:inline-block px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-medium transition"
               >
                 Export
               </button>
-              <label className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-medium cursor-pointer transition">
+              <label className="hidden sm:inline-block px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-medium cursor-pointer transition">
                 Import
                 <input type="file" accept=".json" className="hidden" onChange={importAllJSON} />
               </label>
@@ -795,7 +812,7 @@ export default function App() {
                   </label>
                   <label className="flex flex-col sm:flex-row sm:items-center gap-1 text-slate-600">
                     <span className="text-[11px] text-slate-500 font-medium">Spend Req</span>
-                    <input type="text" inputmode="decimal" value={activeWg.spendReq} onChange={(e) => updateWgMeta('spendReq', e.target.value)} className="w-full sm:w-20 rounded-lg border border-slate-300 px-2.5 py-1.5 text-right font-mono text-sm" />
+                    <input type="text" inputMode="decimal" value={activeWg.spendReq} onChange={(e) => updateWgMeta('spendReq', e.target.value)} className="w-full sm:w-20 rounded-lg border border-slate-300 px-2.5 py-1.5 text-right font-mono text-sm" />
                   </label>
                   <label className="flex flex-col sm:flex-row sm:items-center gap-1 text-slate-600">
                     <span className="text-[11px] text-slate-500 font-medium">Booster Get</span>
@@ -846,13 +863,118 @@ export default function App() {
             <div className="flex items-center justify-between px-1">
               <div className="text-xs text-slate-500">
                 <span className="font-semibold text-slate-800 text-sm mr-2">Items</span>
-                Tax: 1=Yes, 0=No · Pct: 0.75 for BOGO 50%
+                <span className="hidden sm:inline">Tax: 1=Yes, 0=No · Pct: 0.75 for BOGO 50%</span>
               </div>
               <button onClick={addWgRow} className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm">+ Add Item</button>
             </div>
 
-            {/* Desktop Table */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+            {/* Mobile Card Layout (< md) */}
+            <div className="space-y-2.5 md:hidden">
+              {activeWg.rows.map((r, idx) => {
+                const rowTotal = parseNum(r.price) * parseNum(r.count) * parseNum(r.percentage);
+                const rowTax = Number(r.taxable) ? rowTotal * parseNum(activeWg.taxRate) : 0;
+                const rowEarned = parseNum(r.wc) + parseNum(r.rr) + parseNum(r.ibotta) + parseNum(r.other);
+                const rowOut = rowTotal - parseNum(r.mfc) - parseNum(r.ivc) + rowTax;
+                const rowProfit = rowEarned - rowOut;
+                const isOpen = !!expandedWgIdx[idx];
+
+                return (
+                  <div key={idx} className="bg-white rounded-2xl border border-slate-200 p-3 shadow-sm space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <input
+                        type="text"
+                        value={r.product || ''}
+                        onChange={(e) => updateWgRow(idx, 'product', e.target.value)}
+                        className="flex-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm font-semibold text-slate-900"
+                        placeholder="Item name"
+                      />
+                      <div className={`text-sm font-mono shrink-0 ${profitClass(rowProfit)}`}>
+                        {fmtMoney(rowProfit)}
+                      </div>
+                      <button
+                        onClick={() => removeWgRow(idx)}
+                        className="w-7 h-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center font-bold text-base"
+                        aria-label="Remove item"
+                      >
+                        ×
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <label className="space-y-1">
+                        <span className="block text-[10px] font-medium text-slate-500">Price</span>
+                        <input type="text" inputMode="decimal" value={r.price} onChange={(e) => updateWgRow(idx, 'price', e.target.value)} className={inputNumClass} />
+                      </label>
+                      <label className="space-y-1">
+                        <span className="block text-[10px] font-medium text-slate-500">Qty</span>
+                        <input type="text" inputMode="decimal" value={r.count} onChange={(e) => updateWgRow(idx, 'count', e.target.value)} className={inputNumClass} />
+                      </label>
+                      <label className="space-y-1">
+                        <span className="block text-[10px] font-medium text-slate-500">Pct</span>
+                        <input type="text" inputMode="decimal" value={r.percentage} onChange={(e) => updateWgRow(idx, 'percentage', e.target.value)} className={inputNumClass} />
+                      </label>
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-2 text-xs">
+                      <label className="space-y-1">
+                        <span className="block text-[10px] font-medium text-blue-700">MFC</span>
+                        <input type="text" inputMode="decimal" value={r.mfc} onChange={(e) => updateWgRow(idx, 'mfc', e.target.value)} className={`${inputNumClass} border-blue-200 bg-blue-50/20`} />
+                      </label>
+                      <label className="space-y-1">
+                        <span className="block text-[10px] font-medium text-blue-700">IVC/SC</span>
+                        <input type="text" inputMode="decimal" value={r.ivc} onChange={(e) => updateWgRow(idx, 'ivc', e.target.value)} className={`${inputNumClass} border-blue-200 bg-blue-50/20`} />
+                      </label>
+                      <label className="space-y-1">
+                        <span className="block text-[10px] font-medium text-purple-700">WC</span>
+                        <input type="text" inputMode="decimal" value={r.wc} onChange={(e) => updateWgRow(idx, 'wc', e.target.value)} className={`${inputNumClass} border-purple-200 bg-purple-50/20`} />
+                      </label>
+                      <label className="space-y-1">
+                        <span className="block text-[10px] font-medium text-purple-700">RR</span>
+                        <input type="text" inputMode="decimal" value={r.rr} onChange={(e) => updateWgRow(idx, 'rr', e.target.value)} className={`${inputNumClass} border-purple-200 bg-purple-50/20`} />
+                      </label>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px] text-slate-500 font-mono">
+                      <span>Tot: ${rowTotal.toFixed(2)} · Tax: ${rowTax.toFixed(2)}</span>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedWgIdx((p) => ({ ...p, [idx]: !p[idx] }))}
+                        className="text-blue-600 font-sans font-medium"
+                      >
+                        {isOpen ? 'Less' : '+ Ibotta / Other / Tax'}
+                      </button>
+                    </div>
+
+                    {isOpen && (
+                      <div className="grid grid-cols-3 gap-2 pt-1 text-xs">
+                        <label className="space-y-1">
+                          <span className="block text-[10px] font-medium text-purple-700">Ibotta</span>
+                          <input type="text" inputMode="decimal" value={r.ibotta} onChange={(e) => updateWgRow(idx, 'ibotta', e.target.value)} className={`${inputNumClass} border-purple-200 bg-purple-50/20`} />
+                        </label>
+                        <label className="space-y-1">
+                          <span className="block text-[10px] font-medium text-purple-700">Other</span>
+                          <input type="text" inputMode="decimal" value={r.other} onChange={(e) => updateWgRow(idx, 'other', e.target.value)} className={`${inputNumClass} border-purple-200 bg-purple-50/20`} />
+                        </label>
+                        <label className="space-y-1">
+                          <span className="block text-[10px] font-medium text-slate-500">Taxable</span>
+                          <select
+                            value={r.taxable}
+                            onChange={(e) => updateWgRow(idx, 'taxable', e.target.value)}
+                            className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-mono bg-white"
+                          >
+                            <option value={1}>1 (Yes)</option>
+                            <option value={0}>0 (No)</option>
+                          </select>
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Table (>= md) */}
+            <div className="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
               <table className="w-full text-xs text-left border-collapse">
                 <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
                   <tr>
@@ -883,23 +1005,23 @@ export default function App() {
                     return (
                       <tr key={idx} className="hover:bg-slate-50/80">
                         <td className="p-1.5 px-3"><input type="text" value={r.product || ''} onChange={(e) => updateWgRow(idx, 'product', e.target.value)} className="w-full rounded border border-slate-200 px-2 py-1 font-medium" placeholder="Item" /></td>
-                        <td className="p-1.5 px-2"><input type="text" value={r.price} onChange={(e) => updateWgRow(idx, 'price', e.target.value)} className="w-full rounded border border-slate-200 px-1.5 py-1 text-right font-mono" /></td>
-                        <td className="p-1.5 px-2"><input type="text" value={r.count} onChange={(e) => updateWgRow(idx, 'count', e.target.value)} className="w-full rounded border border-slate-200 px-1.5 py-1 text-right font-mono" /></td>
+                        <td className="p-1.5 px-2"><input type="text" inputMode="decimal" value={r.price} onChange={(e) => updateWgRow(idx, 'price', e.target.value)} className="w-full rounded border border-slate-200 px-1.5 py-1 text-right font-mono" /></td>
+                        <td className="p-1.5 px-2"><input type="text" inputMode="decimal" value={r.count} onChange={(e) => updateWgRow(idx, 'count', e.target.value)} className="w-full rounded border border-slate-200 px-1.5 py-1 text-right font-mono" /></td>
                         <td className="p-1.5 px-2 text-center">
                           <select value={r.taxable} onChange={(e) => updateWgRow(idx, 'taxable', e.target.value)} className="rounded border border-slate-200 px-1 py-1 font-mono bg-white">
                             <option value={1}>1</option>
                             <option value={0}>0</option>
                           </select>
                         </td>
-                        <td className="p-1.5 px-2"><input type="text" value={r.percentage} onChange={(e) => updateWgRow(idx, 'percentage', e.target.value)} className="w-full rounded border border-slate-200 px-1.5 py-1 text-right font-mono" /></td>
+                        <td className="p-1.5 px-2"><input type="text" inputMode="decimal" value={r.percentage} onChange={(e) => updateWgRow(idx, 'percentage', e.target.value)} className="w-full rounded border border-slate-200 px-1.5 py-1 text-right font-mono" /></td>
                         <td className="p-1.5 px-2 text-right font-mono bg-slate-50/70">{rowTotal.toFixed(2)}</td>
                         <td className="p-1.5 px-2 text-right font-mono bg-slate-50/70 text-slate-500">{rowTax.toFixed(2)}</td>
-                        <td className="p-1.5 px-2"><input type="text" value={r.mfc} onChange={(e) => updateWgRow(idx, 'mfc', e.target.value)} className="w-full rounded border border-blue-200 bg-blue-50/20 px-1.5 py-1 text-right font-mono" /></td>
-                        <td className="p-1.5 px-2"><input type="text" value={r.ivc} onChange={(e) => updateWgRow(idx, 'ivc', e.target.value)} className="w-full rounded border border-blue-200 bg-blue-50/20 px-1.5 py-1 text-right font-mono" /></td>
-                        <td className="p-1.5 px-2"><input type="text" value={r.wc} onChange={(e) => updateWgRow(idx, 'wc', e.target.value)} className="w-full rounded border border-purple-200 bg-purple-50/20 px-1.5 py-1 text-right font-mono" /></td>
-                        <td className="p-1.5 px-2"><input type="text" value={r.rr} onChange={(e) => updateWgRow(idx, 'rr', e.target.value)} className="w-full rounded border border-purple-200 bg-purple-50/20 px-1.5 py-1 text-right font-mono" /></td>
-                        <td className="p-1.5 px-2"><input type="text" value={r.ibotta} onChange={(e) => updateWgRow(idx, 'ibotta', e.target.value)} className="w-full rounded border border-purple-200 bg-purple-50/20 px-1.5 py-1 text-right font-mono" /></td>
-                        <td className="p-1.5 px-2"><input type="text" value={r.other} onChange={(e) => updateWgRow(idx, 'other', e.target.value)} className="w-full rounded border border-purple-200 bg-purple-50/20 px-1.5 py-1 text-right font-mono" /></td>
+                        <td className="p-1.5 px-2"><input type="text" inputMode="decimal" value={r.mfc} onChange={(e) => updateWgRow(idx, 'mfc', e.target.value)} className="w-full rounded border border-blue-200 bg-blue-50/20 px-1.5 py-1 text-right font-mono" /></td>
+                        <td className="p-1.5 px-2"><input type="text" inputMode="decimal" value={r.ivc} onChange={(e) => updateWgRow(idx, 'ivc', e.target.value)} className="w-full rounded border border-blue-200 bg-blue-50/20 px-1.5 py-1 text-right font-mono" /></td>
+                        <td className="p-1.5 px-2"><input type="text" inputMode="decimal" value={r.wc} onChange={(e) => updateWgRow(idx, 'wc', e.target.value)} className="w-full rounded border border-purple-200 bg-purple-50/20 px-1.5 py-1 text-right font-mono" /></td>
+                        <td className="p-1.5 px-2"><input type="text" inputMode="decimal" value={r.rr} onChange={(e) => updateWgRow(idx, 'rr', e.target.value)} className="w-full rounded border border-purple-200 bg-purple-50/20 px-1.5 py-1 text-right font-mono" /></td>
+                        <td className="p-1.5 px-2"><input type="text" inputMode="decimal" value={r.ibotta} onChange={(e) => updateWgRow(idx, 'ibotta', e.target.value)} className="w-full rounded border border-purple-200 bg-purple-50/20 px-1.5 py-1 text-right font-mono" /></td>
+                        <td className="p-1.5 px-2"><input type="text" inputMode="decimal" value={r.other} onChange={(e) => updateWgRow(idx, 'other', e.target.value)} className="w-full rounded border border-purple-200 bg-purple-50/20 px-1.5 py-1 text-right font-mono" /></td>
                         <td className={`p-1.5 px-3 text-right font-mono bg-slate-50/70 ${profitClass(rowProfit)}`}>{fmtMoney(rowProfit)}</td>
                         <td className="p-1.5 px-2 text-center"><button onClick={() => removeWgRow(idx)} className="text-slate-400 hover:text-rose-600 font-bold text-base">×</button></td>
                       </tr>
@@ -934,7 +1056,7 @@ export default function App() {
                 </div>
                 <div className="flex items-center gap-2 text-xs">
                   <span className="text-slate-500 font-medium">Tax Rate:</span>
-                  <input type="text" value={activeCvs.taxRate} onChange={(e) => updateCvsMeta(e.target.value)} className="w-24 rounded-lg border border-slate-300 px-2.5 py-1.5 text-right font-mono text-sm" />
+                  <input type="text" inputMode="decimal" value={activeCvs.taxRate} onChange={(e) => updateCvsMeta(e.target.value)} className="w-24 rounded-lg border border-slate-300 px-2.5 py-1.5 text-right font-mono text-sm" />
                 </div>
               </div>
 
@@ -972,12 +1094,103 @@ export default function App() {
             <div className="flex items-center justify-between px-1">
               <div className="text-xs text-slate-500">
                 <span className="font-semibold text-slate-800 text-sm mr-2">Items</span>
-                Taxable base = SubTotal - CRT
+                <span className="hidden sm:inline">Taxable base = SubTotal - CRT</span>
               </div>
               <button onClick={addCvsRow} className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-sm">+ Add Item</button>
             </div>
 
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+            {/* Mobile Card Layout (< md) */}
+            <div className="space-y-2.5 md:hidden">
+              {activeCvs.rows.map((r, idx) => {
+                const sub = parseNum(r.price) * parseNum(r.count) * parseNum(r.percentage);
+                const beforeTax = sub - parseNum(r.mfr) - parseNum(r.crt);
+                const rowTax = Math.max(0, sub - parseNum(r.crt)) * parseNum(activeCvs.taxRate);
+                const afterTax = beforeTax + rowTax;
+                const rowProfit = parseNum(r.eb) + parseNum(r.ibotta) + parseNum(r.other) - afterTax;
+                const isOpen = !!expandedCvsIdx[idx];
+
+                return (
+                  <div key={idx} className="bg-white rounded-2xl border border-slate-200 p-3 shadow-sm space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <input
+                        type="text"
+                        value={r.product || ''}
+                        onChange={(e) => updateCvsRow(idx, 'product', e.target.value)}
+                        className="flex-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm font-semibold text-slate-900"
+                        placeholder="Item name"
+                      />
+                      <div className={`text-sm font-mono shrink-0 ${profitClass(rowProfit)}`}>
+                        {fmtMoney(rowProfit)}
+                      </div>
+                      <button
+                        onClick={() => removeCvsRow(idx)}
+                        className="w-7 h-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center font-bold text-base"
+                        aria-label="Remove item"
+                      >
+                        ×
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <label className="space-y-1">
+                        <span className="block text-[10px] font-medium text-slate-500">Price</span>
+                        <input type="text" inputMode="decimal" value={r.price} onChange={(e) => updateCvsRow(idx, 'price', e.target.value)} className={inputNumClass} />
+                      </label>
+                      <label className="space-y-1">
+                        <span className="block text-[10px] font-medium text-slate-500">Qty</span>
+                        <input type="text" inputMode="decimal" value={r.count} onChange={(e) => updateCvsRow(idx, 'count', e.target.value)} className={inputNumClass} />
+                      </label>
+                      <label className="space-y-1">
+                        <span className="block text-[10px] font-medium text-slate-500">Pct</span>
+                        <input type="text" inputMode="decimal" value={r.percentage} onChange={(e) => updateCvsRow(idx, 'percentage', e.target.value)} className={inputNumClass} />
+                      </label>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <label className="space-y-1">
+                        <span className="block text-[10px] font-medium text-blue-700">MFR</span>
+                        <input type="text" inputMode="decimal" value={r.mfr} onChange={(e) => updateCvsRow(idx, 'mfr', e.target.value)} className={`${inputNumClass} border-blue-200 bg-blue-50/20`} />
+                      </label>
+                      <label className="space-y-1">
+                        <span className="block text-[10px] font-medium text-blue-700">CRT</span>
+                        <input type="text" inputMode="decimal" value={r.crt} onChange={(e) => updateCvsRow(idx, 'crt', e.target.value)} className={`${inputNumClass} border-blue-200 bg-blue-50/20`} />
+                      </label>
+                      <label className="space-y-1">
+                        <span className="block text-[10px] font-medium text-purple-700">EB</span>
+                        <input type="text" inputMode="decimal" value={r.eb} onChange={(e) => updateCvsRow(idx, 'eb', e.target.value)} className={`${inputNumClass} border-purple-200 bg-purple-50/20`} />
+                      </label>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px] text-slate-500 font-mono">
+                      <span>Sub: ${sub.toFixed(2)} · Pre: ${beforeTax.toFixed(2)}</span>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedCvsIdx((p) => ({ ...p, [idx]: !p[idx] }))}
+                        className="text-rose-600 font-sans font-medium"
+                      >
+                        {isOpen ? 'Less' : '+ Ibotta / Other'}
+                      </button>
+                    </div>
+
+                    {isOpen && (
+                      <div className="grid grid-cols-2 gap-2 pt-1 text-xs">
+                        <label className="space-y-1">
+                          <span className="block text-[10px] font-medium text-purple-700">Ibotta</span>
+                          <input type="text" inputMode="decimal" value={r.ibotta} onChange={(e) => updateCvsRow(idx, 'ibotta', e.target.value)} className={`${inputNumClass} border-purple-200 bg-purple-50/20`} />
+                        </label>
+                        <label className="space-y-1">
+                          <span className="block text-[10px] font-medium text-purple-700">Other</span>
+                          <input type="text" inputMode="decimal" value={r.other} onChange={(e) => updateCvsRow(idx, 'other', e.target.value)} className={`${inputNumClass} border-purple-200 bg-purple-50/20`} />
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Table (>= md) */}
+            <div className="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
               <table className="w-full text-xs text-left border-collapse">
                 <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
                   <tr>
@@ -1006,16 +1219,16 @@ export default function App() {
                     return (
                       <tr key={idx} className="hover:bg-slate-50/80">
                         <td className="p-1.5 px-3"><input type="text" value={r.product || ''} onChange={(e) => updateCvsRow(idx, 'product', e.target.value)} className="w-full rounded border border-slate-200 px-2 py-1 font-medium" placeholder="Item" /></td>
-                        <td className="p-1.5 px-2"><input type="text" value={r.price} onChange={(e) => updateCvsRow(idx, 'price', e.target.value)} className="w-full rounded border border-slate-200 px-1.5 py-1 text-right font-mono" /></td>
-                        <td className="p-1.5 px-2"><input type="text" value={r.count} onChange={(e) => updateCvsRow(idx, 'count', e.target.value)} className="w-full rounded border border-slate-200 px-1.5 py-1 text-right font-mono" /></td>
-                        <td className="p-1.5 px-2"><input type="text" value={r.percentage} onChange={(e) => updateCvsRow(idx, 'percentage', e.target.value)} className="w-full rounded border border-slate-200 px-1.5 py-1 text-right font-mono" /></td>
+                        <td className="p-1.5 px-2"><input type="text" inputMode="decimal" value={r.price} onChange={(e) => updateCvsRow(idx, 'price', e.target.value)} className="w-full rounded border border-slate-200 px-1.5 py-1 text-right font-mono" /></td>
+                        <td className="p-1.5 px-2"><input type="text" inputMode="decimal" value={r.count} onChange={(e) => updateCvsRow(idx, 'count', e.target.value)} className="w-full rounded border border-slate-200 px-1.5 py-1 text-right font-mono" /></td>
+                        <td className="p-1.5 px-2"><input type="text" inputMode="decimal" value={r.percentage} onChange={(e) => updateCvsRow(idx, 'percentage', e.target.value)} className="w-full rounded border border-slate-200 px-1.5 py-1 text-right font-mono" /></td>
                         <td className="p-1.5 px-2 text-right font-mono bg-slate-50/70">{sub.toFixed(2)}</td>
-                        <td className="p-1.5 px-2"><input type="text" value={r.mfr} onChange={(e) => updateCvsRow(idx, 'mfr', e.target.value)} className="w-full rounded border border-blue-200 bg-blue-50/20 px-1.5 py-1 text-right font-mono" /></td>
-                        <td className="p-1.5 px-2"><input type="text" value={r.crt} onChange={(e) => updateCvsRow(idx, 'crt', e.target.value)} className="w-full rounded border border-blue-200 bg-blue-50/20 px-1.5 py-1 text-right font-mono" /></td>
+                        <td className="p-1.5 px-2"><input type="text" inputMode="decimal" value={r.mfr} onChange={(e) => updateCvsRow(idx, 'mfr', e.target.value)} className="w-full rounded border border-blue-200 bg-blue-50/20 px-1.5 py-1 text-right font-mono" /></td>
+                        <td className="p-1.5 px-2"><input type="text" inputMode="decimal" value={r.crt} onChange={(e) => updateCvsRow(idx, 'crt', e.target.value)} className="w-full rounded border border-blue-200 bg-blue-50/20 px-1.5 py-1 text-right font-mono" /></td>
                         <td className="p-1.5 px-2 text-right font-mono bg-slate-50/70">{beforeTax.toFixed(2)}</td>
-                        <td className="p-1.5 px-2"><input type="text" value={r.eb} onChange={(e) => updateCvsRow(idx, 'eb', e.target.value)} className="w-full rounded border border-purple-200 bg-purple-50/20 px-1.5 py-1 text-right font-mono" /></td>
-                        <td className="p-1.5 px-2"><input type="text" value={r.ibotta} onChange={(e) => updateCvsRow(idx, 'ibotta', e.target.value)} className="w-full rounded border border-purple-200 bg-purple-50/20 px-1.5 py-1 text-right font-mono" /></td>
-                        <td className="p-1.5 px-2"><input type="text" value={r.other} onChange={(e) => updateCvsRow(idx, 'other', e.target.value)} className="w-full rounded border border-purple-200 bg-purple-50/20 px-1.5 py-1 text-right font-mono" /></td>
+                        <td className="p-1.5 px-2"><input type="text" inputMode="decimal" value={r.eb} onChange={(e) => updateCvsRow(idx, 'eb', e.target.value)} className="w-full rounded border border-purple-200 bg-purple-50/20 px-1.5 py-1 text-right font-mono" /></td>
+                        <td className="p-1.5 px-2"><input type="text" inputMode="decimal" value={r.ibotta} onChange={(e) => updateCvsRow(idx, 'ibotta', e.target.value)} className="w-full rounded border border-purple-200 bg-purple-50/20 px-1.5 py-1 text-right font-mono" /></td>
+                        <td className="p-1.5 px-2"><input type="text" inputMode="decimal" value={r.other} onChange={(e) => updateCvsRow(idx, 'other', e.target.value)} className="w-full rounded border border-purple-200 bg-purple-50/20 px-1.5 py-1 text-right font-mono" /></td>
                         <td className={`p-1.5 px-3 text-right font-mono bg-slate-50/70 ${profitClass(rowProfit)}`}>{fmtMoney(rowProfit)}</td>
                         <td className="p-1.5 px-2 text-center"><button onClick={() => removeCvsRow(idx)} className="text-slate-400 hover:text-rose-600 font-bold text-base">×</button></td>
                       </tr>
@@ -1041,7 +1254,177 @@ export default function App() {
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+            {/* Mobile Account-First View (< md) */}
+            <div className="space-y-3 md:hidden">
+              <div className="bg-white rounded-2xl border border-slate-200 p-3 shadow-sm space-y-3 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 shrink-0">
+                    Select Account ({state.frys.accounts.length})
+                  </span>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {state.frys.accounts.length > 0 && (
+                      <select
+                        aria-label="Jump to Fry's account"
+                        value={activeFrysAcc?.id || ''}
+                        onChange={(e) => setSelectedFrysAccId(e.target.value)}
+                        className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-700 max-w-[145px] truncate"
+                      >
+                        {state.frys.accounts.map((acc) => (
+                          <option key={acc.id} value={acc.id}>
+                            {acc.email || acc.phone || 'Account'}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {activeFrysAcc && (
+                      <button
+                        type="button"
+                        onClick={() => removeFrysAccount(activeFrysAccIndex)}
+                        className="text-[11px] font-medium text-rose-600 hover:underline shrink-0"
+                      >
+                        Remove Account
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div
+                  className="flex gap-2 overflow-x-auto no-scrollbar pb-1 touch-pan-x snap-x snap-mandatory w-full"
+                  style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}
+                >
+                  {state.frys.accounts.map((acc) => {
+                    const isSelected = activeFrysAcc && acc.id === activeFrysAcc.id;
+                    const label = acc.email || acc.phone || 'Account';
+                    let accBuy = 0, accRec = 0;
+                    state.frys.deals.forEach((d) => {
+                      const st = d.status?.[acc.id] || {};
+                      if (st.buy) accBuy++;
+                      if (st.receive) accRec++;
+                    });
+                    return (
+                      <button
+                        key={acc.id}
+                        type="button"
+                        onClick={() => setSelectedFrysAccId(acc.id)}
+                        className={`px-3 py-2 rounded-xl border text-left shrink-0 snap-start transition ${
+                          isSelected
+                            ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
+                            : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        <div className="text-xs font-semibold whitespace-nowrap">{label}</div>
+                        <div className={`text-[10px] font-mono mt-0.5 whitespace-nowrap ${isSelected ? 'text-blue-100' : 'text-slate-500'}`}>
+                          {accBuy}B / {accRec}R
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {activeFrysAcc && (
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-xs">
+                    <label className="space-y-1">
+                      <span className="block text-[10px] font-medium text-slate-500">Account / Email</span>
+                      <input
+                        type="text"
+                        value={activeFrysAcc.email}
+                        onChange={(e) => updateFrysAccount(activeFrysAccIndex, 'email', e.target.value)}
+                        placeholder="Account label"
+                        className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold bg-white"
+                      />
+                    </label>
+                    <label className="space-y-1">
+                      <span className="block text-[10px] font-medium text-slate-500">Phone</span>
+                      <input
+                        type="text"
+                        inputMode="tel"
+                        value={activeFrysAcc.phone}
+                        onChange={(e) => updateFrysAccount(activeFrysAccIndex, 'phone', e.target.value)}
+                        placeholder="Phone number"
+                        className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-mono bg-white"
+                      />
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              {activeFrysAcc ? (
+                <div className="space-y-2.5">
+                  {state.frys.deals.map((deal, dIdx) => {
+                    let buyCount = 0, recCount = 0;
+                    state.frys.accounts.forEach((acc) => {
+                      const st = deal.status?.[acc.id] || {};
+                      if (st.buy) buyCount++;
+                      if (st.receive) recCount++;
+                    });
+                    const st = deal.status?.[activeFrysAcc.id] || { buy: false, receive: false };
+                    const cardTint = st.receive
+                      ? 'bg-emerald-50/50 border-emerald-200'
+                      : st.buy
+                      ? 'bg-amber-50/50 border-amber-200'
+                      : 'bg-white border-slate-200';
+
+                    return (
+                      <div key={deal.id} className={`rounded-2xl border p-3 shadow-sm space-y-2.5 transition ${cardTint}`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <input
+                            type="text"
+                            value={deal.name}
+                            onChange={(e) => updateFrysDealName(dIdx, e.target.value)}
+                            className="flex-1 rounded-lg border border-slate-200/80 bg-white/80 px-2.5 py-1 text-sm font-semibold text-slate-900"
+                          />
+                          <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-mono text-[11px] font-semibold shrink-0">
+                            {buyCount}B / {recCount}R
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => removeFrysDeal(dIdx)}
+                            className="w-7 h-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center font-bold text-base"
+                            aria-label="Remove deal"
+                          >
+                            ×
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleFrysStatus(dIdx, activeFrysAcc.id, 'buy', !st.buy)}
+                            className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition ${
+                              st.buy
+                                ? 'bg-amber-100 border-amber-300 text-amber-900'
+                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                            }`}
+                          >
+                            <span>{st.buy ? '✓' : '○'}</span>
+                            <span>Bought</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleFrysStatus(dIdx, activeFrysAcc.id, 'receive', !st.receive)}
+                            className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition ${
+                              st.receive
+                                ? 'bg-emerald-100 border-emerald-300 text-emerald-900'
+                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                            }`}
+                          >
+                            <span>{st.receive ? '✓' : '○'}</span>
+                            <span>Received</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl border border-slate-200 p-6 text-center text-xs text-slate-500">
+                  No accounts yet. Tap <strong>+ Add Account</strong> to start tracking.
+                </div>
+              )}
+            </div>
+
+            {/* Desktop Full Matrix (>= md) */}
+            <div className="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
               <table className="w-full text-xs text-left border-collapse">
                 <thead className="bg-slate-50 text-slate-700 border-b border-slate-200">
                   <tr>
@@ -1052,7 +1435,7 @@ export default function App() {
                           <input type="text" value={acc.email} onChange={(e) => updateFrysAccount(aIdx, 'email', e.target.value)} placeholder="Account" className="w-full text-center font-semibold bg-transparent text-xs" />
                           <button onClick={() => removeFrysAccount(aIdx)} className="text-slate-300 hover:text-rose-500 text-sm px-1">×</button>
                         </div>
-                        <input type="text" value={acc.phone} onChange={(e) => updateFrysAccount(aIdx, 'phone', e.target.value)} placeholder="Phone" className="w-full text-center font-mono text-[11px] text-slate-500 bg-transparent mt-0.5" />
+                        <input type="text" inputMode="tel" value={acc.phone} onChange={(e) => updateFrysAccount(aIdx, 'phone', e.target.value)} placeholder="Phone" className="w-full text-center font-mono text-[11px] text-slate-500 bg-transparent mt-0.5" />
                       </th>
                     ))}
                     <th rowSpan="2" className="py-2.5 px-2.5 text-center bg-slate-100 min-w-[85px]">Progress</th>
@@ -1070,7 +1453,7 @@ export default function App() {
                   {state.frys.deals.map((deal, dIdx) => {
                     let buyCount = 0, recCount = 0;
                     state.frys.accounts.forEach((acc) => {
-                      const st = deal.status[acc.id] || {};
+                      const st = deal.status?.[acc.id] || {};
                       if (st.buy) buyCount++;
                       if (st.receive) recCount++;
                     });
@@ -1083,7 +1466,7 @@ export default function App() {
                           </div>
                         </td>
                         {state.frys.accounts.map((acc) => {
-                          const st = deal.status[acc.id] || { buy: false, receive: false };
+                          const st = deal.status?.[acc.id] || { buy: false, receive: false };
                           const bg = st.receive ? 'bg-emerald-50/80' : st.buy ? 'bg-amber-50/80' : '';
                           return (
                             <React.Fragment key={acc.id}>
@@ -1193,7 +1576,88 @@ export default function App() {
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+            {/* Mobile Card Layout (< md) */}
+            <div className="space-y-2.5 md:hidden">
+              {filteredReviews.map((r) => {
+                const cost = parseNum(r.cost);
+                const rec = parseNum(r.received);
+                const diff = rec - cost;
+                const badge =
+                  rec === 0 && cost > 0 ? (
+                    <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-semibold text-[10px]">Unpaid</span>
+                  ) : diff > 0.004 ? (
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold text-[10px]">Profit</span>
+                  ) : Math.abs(diff) <= 0.004 ? (
+                    <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium text-[10px]">Even</span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium text-[10px]">Discounted</span>
+                  );
+
+                return (
+                  <div key={r.id} className="bg-white rounded-2xl border border-slate-200 p-3 shadow-sm space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <select
+                        value={r.account}
+                        onChange={(e) => updateReviewRow(r.id, 'account', e.target.value)}
+                        className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold bg-slate-50"
+                      >
+                        <option value="Bo">Bo</option>
+                        <option value="Star">Star</option>
+                      </select>
+                      <input
+                        type="text"
+                        value={r.product || ''}
+                        onChange={(e) => updateReviewRow(r.id, 'product', e.target.value)}
+                        className="flex-1 rounded-lg border border-slate-200 px-2.5 py-1 text-sm font-semibold text-slate-900"
+                        placeholder="Product"
+                      />
+                      {badge}
+                      <button
+                        onClick={() => removeReviewRow(r.id)}
+                        className="w-7 h-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center font-bold text-base"
+                        aria-label="Remove review"
+                      >
+                        ×
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <label className="space-y-1">
+                        <span className="block text-[10px] font-medium text-slate-500">Paid ($)</span>
+                        <input type="text" inputMode="decimal" value={r.cost} onChange={(e) => updateReviewRow(r.id, 'cost', e.target.value)} className={inputNumClass} />
+                      </label>
+                      <label className="space-y-1">
+                        <span className="block text-[10px] font-medium text-slate-500">Refund ($)</span>
+                        <input type="text" inputMode="decimal" value={r.received} onChange={(e) => updateReviewRow(r.id, 'received', e.target.value)} className={inputNumClass} />
+                      </label>
+                      <label className="space-y-1">
+                        <span className="block text-[10px] font-medium text-slate-500">Date</span>
+                        <input
+                          type="text"
+                          value={r.submitDate || ''}
+                          onChange={(e) => updateReviewRow(r.id, 'submitDate', e.target.value)}
+                          placeholder="MM/DD"
+                          className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-center font-mono text-sm bg-white text-slate-600"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
+                      <span className="text-slate-500">Net Diff</span>
+                      <span className={`font-mono ${profitClass(diff)}`}>{fmtMoney(diff)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+
+              <div className="bg-slate-100 rounded-2xl border border-slate-200 p-3 flex items-center justify-between text-xs font-semibold text-slate-800">
+                <span>Filtered ({filteredReviews.length}) · Paid {fmtMoney(filteredRevCost)} / Rec {fmtMoney(filteredRevRec)}</span>
+                <span className={`font-mono ${profitClass(filteredRevDiff)}`}>{fmtMoney(filteredRevDiff)}</span>
+              </div>
+            </div>
+
+            {/* Desktop Table (>= md) */}
+            <div className="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
               <table className="w-full text-xs text-left border-collapse">
                 <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
                   <tr>
@@ -1221,9 +1685,9 @@ export default function App() {
                           </select>
                         </td>
                         <td className="p-1.5 px-3"><input type="text" value={r.product || ''} onChange={(e) => updateReviewRow(r.id, 'product', e.target.value)} className="w-full rounded border border-slate-200 px-2 py-1 font-medium" /></td>
-                        <td className="p-1.5 px-3"><input type="text" value={r.cost} onChange={(e) => updateReviewRow(r.id, 'cost', e.target.value)} className="w-full rounded border border-slate-200 px-2 py-1 text-right font-mono" /></td>
+                        <td className="p-1.5 px-3"><input type="text" inputMode="decimal" value={r.cost} onChange={(e) => updateReviewRow(r.id, 'cost', e.target.value)} className="w-full rounded border border-slate-200 px-2 py-1 text-right font-mono" /></td>
                         <td className="p-1.5 px-3"><input type="text" value={r.submitDate || ''} onChange={(e) => updateReviewRow(r.id, 'submitDate', e.target.value)} placeholder="MM/DD" className="w-full rounded border border-slate-200 px-2 py-1 text-center font-mono text-slate-600" /></td>
-                        <td className="p-1.5 px-3"><input type="text" value={r.received} onChange={(e) => updateReviewRow(r.id, 'received', e.target.value)} className="w-full rounded border border-slate-200 px-2 py-1 text-right font-mono" /></td>
+                        <td className="p-1.5 px-3"><input type="text" inputMode="decimal" value={r.received} onChange={(e) => updateReviewRow(r.id, 'received', e.target.value)} className="w-full rounded border border-slate-200 px-2 py-1 text-right font-mono" /></td>
                         <td className={`p-1.5 px-3 text-right font-mono bg-slate-50/70 ${profitClass(diff)}`}>{fmtMoney(diff)}</td>
                         <td className="p-1.5 px-3 text-center">
                           {rec === 0 && cost > 0 ? (
